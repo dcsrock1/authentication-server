@@ -146,7 +146,7 @@ def get_user_details(user_id: int) -> dict | None:
 # function to create tokens for user sessions
 def create_token(user_id: int, days_valid: int = 30) -> str:
     token = secrets.token_hex(32)
-    expires_at = datetime.now(datetime.timezone.utc) + datetime.timedelta(days=days_valid)
+    expires_at = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=days_valid)
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute(
             "INSERT INTO tokens (user_id, token, expires_at) VALUES (?, ?, ?)",
@@ -155,7 +155,7 @@ def create_token(user_id: int, days_valid: int = 30) -> str:
     return token
 
 # function to validate session tokens
-def verify_token(token: str) -> int | None:
+def verify_token(token: str) -> int | bool:
     with sqlite3.connect(DB_PATH) as conn:
         conn.row_factory = sqlite3.Row
         row = conn.execute(
@@ -164,18 +164,18 @@ def verify_token(token: str) -> int | None:
         ).fetchone()
         
         if row is None:
-            return None
+            return False
         
-        if datetime.fromisoformat(row["expires_at"]) < datetime.now(datetime.timezone.utc):
+        if datetime.datetime.fromisoformat(row["expires_at"]) < datetime.datetime.now(datetime.timezone.utc):
             conn.execute(
                 "DELETE FROM tokens WHERE token = ?",
                 (token,)
             )
-            return None
+            return False
         
         conn.execute(
             "UPDATE tokens SET last_used_at = ? WHERE token = ?",
-            (datetime.now(datetime.timezone.utc).isoformat(), token)
+            (datetime.datetime.now(datetime.timezone.utc).isoformat(), token)
         )
         return row["user_id"]
 
@@ -194,3 +194,23 @@ def revoke_all_tokens(user_id: int) -> None:
             "DELETE FROM tokens WHERE user_id = ?",
             (user_id,)
         )
+
+# function to get all tokens tied to a user id
+def get_all_tokens(user_id: int) -> list:
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            "SELECT * FROM tokens WHERE user_id = ?",
+            (user_id,)
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+# simplifies extracting the id from the token
+def extract_id_from_token(token: str) -> int:
+    user_id = token[:-42]
+    return user_id
+
+# simplifies extraction the expiry date from the token
+def extract_expiry_date_from_token(token: str) -> str:
+    expiry_date = token[-10:]
+    return expiry_date
