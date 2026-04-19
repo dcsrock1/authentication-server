@@ -145,7 +145,7 @@ def get_user_details(user_id: int) -> dict | None:
 
 # function to create tokens for user sessions
 def create_token(user_id: int, days_valid: int = 30) -> str:
-    token = secrets.token_hex(64)
+    token = secrets.token_hex(32)
     expires_at = datetime.now(datetime.timezone.utc) + datetime.timedelta(days=days_valid)
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute(

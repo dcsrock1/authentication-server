@@ -55,3 +55,13 @@ def test_register_password_verify():
 def test_register_wrong_password_verfiy():
     db_manage.register("bob", "password123")
     assert not db_manage.verify_password("bob", "password321"), "Password verification failed allowing any password to be used to login, SERIOUS SECURITY ISSUE"
+
+def test_username_change():
+    db_manage.register("bob", "password123")
+    db_manage.change_username(db_manage.get_id_by_username("bob"), "james")
+    assert db_manage.user_exists("james"), "Username modification failed"
+
+def test_password_change():
+    db_manage.register("bob", "password123")
+    db_manage.change_password(db_manage.get_id_by_username("bob"), "password321")
+    assert db_manage.verify_password("bob", "password321") != False, "Password modification failed"
