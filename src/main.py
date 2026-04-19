@@ -61,11 +61,55 @@ class Login(Resource):
 class RevokeToken(Resource):
     def post(self):
         token = request.headers.get("Authorization", "").removeprefix("Bearer ")
+        data = request.get_json()
         if not token:
             return {"error": "No token provided"}, 401
         user_id = db_manage.verify_token(token)
         if user_id == False:
             return {"error": "Invalid or expired token"}, 401
         else:
+            db_manage.revoke_token(data["target"])
             return {"message": "Token has been successfully revoked"}, 204
+        
+class RevokeAllTokens(Resource):
+    def post(self):
+        token = request.headers.get("Authorization", "").removeprefix("Bearer ")
+        if not token:
+            return {"error": "No token provided"}, 401
+        user_id = db_manage.verify_token(token)
+        if user_id == False:
+            return {"error": "Invalid or expired token"}, 401
+        else:
+            db_manage.revoke_all_tokens(user_id)
+            return {"message": "All tokens have been successfully revoked"}, 204
+        
+
+class ChangeUsername(Resource):
+    def post(self):
+        token = request.headers.get("Authorization", "").removeprefix("Bearer ")
+        data = request.get_json()
+        if not token:
+            return {"error": "No token provided"}, 401
+        user_id = db_manage.verify_token(token)
+        if user_id == False:
+            return {"error": "Invalid or expired token"}, 401
+        else:
+            try:
+                db_manage.change_username(user_id, data["new_username"])
+                return {"message": "Username has been changed"}, 204
+            except ValueError as e:
+                return {"error": "Username already in use"}, 409
             
+class ChangePassword(Resource):
+    def post(self):
+        token = request.headers.get("Authorization", "").removeprefix("Bearer ")
+        data = request.get_json()
+        if not token:
+            return {"error": "No token provided"}, 401
+        user_id = db_manage.verify_token(token)
+        if user_id == False:
+            return {"error": "Invalid or expired token"}, 401
+        else:
+            db_manage.change_password(user_id, data["new_password"])
+            return {"message": "password has been changed"}, 204
+        
