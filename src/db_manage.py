@@ -24,6 +24,7 @@ def init_db() -> None:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username TEXT UNIQUE NOT NULL,
                 password_hash TEXT NOT NULL,
+                roles TEXT NOT NULL,
                 created_at TEXT DEFAULT (datetime('now'))
             )    
         """)
@@ -40,7 +41,7 @@ def init_db() -> None:
 
 
 # Function for registering new user accounts with the database
-def register(username: str, password: str) -> None:
+def register(username: str, password: str, role: str="user") -> None:
     peppered = password + PEPPER
     pw_hash = ph.hash(peppered)
     with sqlite3.connect(DB_PATH) as conn:
@@ -214,3 +215,12 @@ def extract_id_from_token(token: str) -> int:
 def extract_expiry_date_from_token(token: str) -> str:
     expiry_date = token[-10:]
     return expiry_date
+
+def set_role(user_id: int):
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute(
+            "UPDATE users SET role = ? WHERE "
+        )
+
+def get_role(user_id: int):
+    pass
