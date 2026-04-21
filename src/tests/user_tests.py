@@ -65,3 +65,4 @@ def test_password_change():
     db_manage.register("bob", "password123")
     db_manage.change_password(db_manage.get_id_by_username("bob"), "password321")
     assert db_manage.verify_password("bob", "password321") != False, "Password modification failed"
+

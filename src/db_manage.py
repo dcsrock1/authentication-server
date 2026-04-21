@@ -24,7 +24,7 @@ def init_db() -> None:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username TEXT UNIQUE NOT NULL,
                 password_hash TEXT NOT NULL,
-                roles TEXT NOT NULL,
+                role TEXT NOT NULL,
                 created_at TEXT DEFAULT (datetime('now'))
             )    
         """)
@@ -47,7 +47,8 @@ def register(username: str, password: str, role: str="user") -> None:
     with sqlite3.connect(DB_PATH) as conn:
         try:
             conn.execute(
-                "INSERT INTO users (username, password_hash) VALUES (?, ?)", (username, pw_hash)
+                "INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)",
+                (username, pw_hash, role)
             )
         except sqlite3.IntegrityError:
             raise ValueError(f"Username '{username}' already exists")
@@ -216,11 +217,23 @@ def extract_expiry_date_from_token(token: str) -> str:
     expiry_date = token[-10:]
     return expiry_date
 
-def set_role(user_id: int):
+# sets role of a user
+def set_role(user_id: int, role: str) -> None:
     with sqlite3.connect(DB_PATH) as conn:
-        conn.execute(
-            "UPDATE users SET role = ? WHERE "
+        cursor = conn.execute(
+            "UPDATE users SET role = ? WHERE id = ?",
+            (role, user_id)
         )
-
-def get_role(user_id: int):
-    pass
+    if cursor.rowcount == 0:
+        raise KeyError(f"User ID '{user_id}' not found")
+# gets the role of a user
+def get_role(user_id: int) -> str:
+    with sqlite3.connect(DB_PATH) as conn:
+        row = conn.execute(
+            "SELECT role FROM users WHERE id = ?",
+            (user_id,)
+        ).fetchone()
+        if row is None:
+            return False
+        else:
+            return row[0]

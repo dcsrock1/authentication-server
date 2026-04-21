@@ -1,6 +1,9 @@
-import db_manage
-import sqlite3
 import pytest
+import sqlite3
+
+import db_manage
+
+
 
 
 @pytest.fixture(autouse=True, scope="module")
