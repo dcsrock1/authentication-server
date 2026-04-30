@@ -197,3 +197,5 @@ api.add_resource(ChangePassword, "/api/change/password")
 api.add_resource(GetRole, "/api/role")
 api.add_resource(ChangeRole, "/api/change/role")
 
+if __name__ == "__main__":
+    app.run("0.0.0.0", port=9444)
