@@ -226,6 +226,7 @@ def set_role(user_id: int, role: str) -> None:
         )
     if cursor.rowcount == 0:
         raise KeyError(f"User ID '{user_id}' not found")
+    
 # gets the role of a user
 def get_role(user_id: int) -> str:
     with sqlite3.connect(DB_PATH) as conn:
