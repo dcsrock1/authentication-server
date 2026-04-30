@@ -187,3 +187,13 @@ class ChangeRole(Resource):
             db_manage.set_role(user_id, data["role"])
             log_event("role_changed", "info", {"user_id": user_id})
             return {"message": "role has been changed"}, 204
+        
+api.add_resource(Login, "/api/login")
+api.add_resource(Register, "/api/register")
+api.add_resource(RevokeToken, "/api/revoke/token")
+api.add_resource(RevokeAllTokens, "/api/revoke/tokens")
+api.add_resource(ChangeUsername, "/api/change/username")
+api.add_resource(ChangePassword, "/api/change/password")
+api.add_resource(GetRole, "/api/role")
+api.add_resource(ChangeRole, "/api/change/role")
+
