@@ -53,6 +53,15 @@ def check_ip_and_key():
 class Login(Resource): # done
     def post(self):
         data = request.get_json()
+        if not data:
+            log_event("invalid_request", "warning")
+            return {"error": "Malformed request"}, 400
+        elif not isinstance(data.get("username", str)):
+            log_event("invalid_request", "warning")
+            return {"error": "Malformed request"}, 400
+        elif not isinstance(data.get("password", str)):
+            log_event("invalid_request", "warning")
+            return {"error": "Malformed request"}, 400
         try:
             id = db_manage.verify_password(data["username"], data["password]"])
             if not id:
@@ -62,12 +71,21 @@ class Login(Resource): # done
                 log_event("login_successful", "info", )
                 return {"message": "Successful login", "token": db_manage.create_token(db_manage.get_user_id(data["username"]))}, 200
         except Exception as e:
-            log_event("login_failed", "error", {""})
+            log_event("login_failed", "error")
             return {"error": str(e)}, 500
 
 class Register(Resource): # done
     def post(self):
         data = request.get_json()
+        if not data:
+            log_event("invalid_request", "warning")
+            return {"error": "Malformed request"}, 400
+        elif not isinstance(data.get("username"), str):
+            log_event("invalid_request", "warning")
+            return {"error": "Malformed request"}, 400
+        elif not isinstance(data.get("password"), str):
+            log_event("invalid_request", "warning")
+            return {"error": "Malformed request"}, 400
         token = request.headers.get("Authorization", "").removeprefix("Bearer ")
         if not token:
             log_event("no_token", "warning")
@@ -85,8 +103,14 @@ class Register(Resource): # done
         
 class RevokeToken(Resource):
     def post(self):
-        token = request.headers.get("Authorization", "").removeprefix("Bearer ")
         data = request.get_json()
+        if not data:
+            log_event("invalid_request", "warning")
+            return {"error": "Malformed request"}, 400
+        elif not isinstance(data.get("target"), str):
+            log_event("invalid_request", "warning")
+            return {"error": "Malformed request"}, 400
+        token = request.headers.get("Authorization", "").removeprefix("Bearer ")
         if not token:
             log_event("no_token", "warning")
             return {"error": "No token provided"}, 401
