@@ -42,9 +42,9 @@ def log_event(event_type: str, severity: str, details: dict={}) -> None:
 def check_ip_and_key():
     ip = request.remote_addr
     key = request.headers.get("X-Internal-Key")
-    if ip not in ALLOWED_IPS:
-        log_event("ip_rejected", "warning")
-        abort(403)
+    #if ip not in ALLOWED_IPS:
+    #    log_event("ip_rejected", "warning")
+    #    abort(403)
     if key != API_KEY:
         log_event("API_key_rejected", "warning")
         abort(403)

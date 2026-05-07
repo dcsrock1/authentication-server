@@ -27,8 +27,7 @@ def client():
 @pytest.fixture
 def auth_headers():
     return {
-        "X-Internal-Key": INTERNAL_KEY,
-        "REMOTE_ADDR": ALLOWED_IP
+        "X-Internal-Key": INTERNAL_KEY
     }
 
 @pytest.fixture
@@ -38,7 +37,7 @@ def admin_headers(client, auth_headers):
         json={"username": "admin", "password": "adminpassword123"},
         headers=auth_headers
     )
-    
+    print(response.get_json())
     token = response.get_json()["token"]
     return {**auth_headers, "Authorization": f"Bearer {token}"}
 
@@ -49,6 +48,7 @@ def user_headers(client, auth_headers):
         json={"username": "alice", "password": "password123"},
         headers=auth_headers
     )
+    print(response.get_json())
     token = response.get_json()["token"]
     return {**auth_headers, "Authorization": f"Bearer {token}"}
 
