@@ -8,7 +8,7 @@ import os
 
 import db_manage
 
-API_KEY = os.environ["INTERNAL_API_KEY"]
+API_KEY = "test-internal-key"
 ALLOWED_IPS = ["192.168.1.1"]
 LOG_PATH = "auth_events.json"
 
@@ -24,7 +24,7 @@ def log_event(event_type: str, severity: str, details: dict={}) -> None:
         "ip": request.remote_addr,
         "request_method": request.method,
         "request_path": request.path,
-        "request_content_type": request.content_type
+        "request_content_type": request.content_type,
         **details
     }
     if os.path.exists(LOG_PATH):
@@ -35,7 +35,7 @@ def log_event(event_type: str, severity: str, details: dict={}) -> None:
     log.append(event)
 
     with open(LOG_PATH, "w") as data:
-        json.dump(log)
+        json.dump(log, data)
 
 
 @app.before_request
@@ -56,20 +56,20 @@ class Login(Resource): # done
         if not data:
             log_event("invalid_request", "warning")
             return {"error": "Malformed request"}, 400
-        elif not isinstance(data.get("username", str)):
+        elif not isinstance(data.get("username"), str):
             log_event("invalid_request", "warning")
             return {"error": "Malformed request"}, 400
-        elif not isinstance(data.get("password", str)):
+        elif not isinstance(data.get("password"), str):
             log_event("invalid_request", "warning")
             return {"error": "Malformed request"}, 400
         try:
-            id = db_manage.verify_password(data["username"], data["password]"])
+            id = db_manage.verify_password(data["username"], data["password"])
             if not id:
                 log_event("login_failed", "warning", {"username": data["username"], "reason": "username or password incorrect"})
                 return {"error": "Username or password is incorrect"}, 401
             else:
                 log_event("login_successful", "info", )
-                return {"message": "Successful login", "token": db_manage.create_token(db_manage.get_user_id(data["username"]))}, 200
+                return {"message": "Successful login", "token": db_manage.create_token(id)}, 200
         except Exception as e:
             log_event("login_failed", "error")
             return {"error": str(e)}, 500
@@ -84,6 +84,9 @@ class Register(Resource): # done
             log_event("invalid_request", "warning")
             return {"error": "Malformed request"}, 400
         elif not isinstance(data.get("password"), str):
+            log_event("invalid_request", "warning")
+            return {"error": "Malformed request"}, 400
+        elif not isinstance(data.get("role"), str):
             log_event("invalid_request", "warning")
             return {"error": "Malformed request"}, 400
         token = request.headers.get("Authorization", "").removeprefix("Bearer ")
@@ -115,7 +118,7 @@ class RevokeToken(Resource):
             log_event("no_token", "warning")
             return {"error": "No token provided"}, 401
         user_id = db_manage.verify_token(token)
-        if user_id == False:
+        if not user_id:
             log_event("invalid_token", "warning")
             return {"error": "Invalid or expired token"}, 401
         else:
@@ -130,7 +133,7 @@ class RevokeAllTokens(Resource):
             log_event("no_token", "warning")
             return {"error": "No token provided"}, 401
         user_id = db_manage.verify_token(token)
-        if user_id == False:
+        if not user_id:
             log_event("invalid_token", "warning")
             return {"error": "Invalid or expired token"}, 401
         else:
@@ -147,7 +150,7 @@ class ChangeUsername(Resource):
             log_event("no_token", "warning")
             return {"error": "No token provided"}, 401
         user_id = db_manage.verify_token(token)
-        if user_id == False:
+        if not user_id:
             log_event("invalid_token", "warning")
             return {"error": "Invalid or expired token"}, 401
         else:
@@ -171,7 +174,7 @@ class ChangePassword(Resource):
             log_event("no_token", "warning")
             return {"error": "No token provided"}, 401
         user_id = db_manage.verify_token(token)
-        if user_id == False:
+        if not user_id:
             log_event("invalid_token", "warning")
             return {"error": "Invalid or expired token"}, 401
         else:
@@ -187,7 +190,7 @@ class GetRole(Resource):
             log_event("no_token", "warning")
             return {"error": "No token provided"}, 401
         user_id = db_manage.verify_token(token)
-        if user_id == False:
+        if not user_id:
             log_event("invalid_token", "warning")
             return {"error": "Invalid or expired token"}, 401
         else:
@@ -202,9 +205,9 @@ class ChangeRole(Resource):
         data = request.get_json()
         if not token:
             log_event("no_token", "warning")
-            return {"error", "No token provided"}, 401
+            return {"error": "No token provided"}, 401
         user_id = db_manage.verify_token(token)
-        if user_id == False:
+        if not user_id:
             log_event("invalid_token", "warning")
             return {"error": "Invalid or expired token"}, 401
         else:
