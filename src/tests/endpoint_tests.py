@@ -112,7 +112,7 @@ def test_login_rejected_ip(client):
 def test_login_rejected_api_key(client):
     response = client.post("/api/login",
         json={"username": "alice", "password": "password123"},
-        environ_base={"REMOTE_ADDR": ALLOWED_IP}
+        environ_base={"REMOTE_ADDR": str(ALLOWED_IP)}
     )
     assert response.status_code == 403
 

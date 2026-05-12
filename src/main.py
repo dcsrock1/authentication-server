@@ -21,10 +21,10 @@ def log_event(event_type: str, severity: str, details: dict={}) -> None:
         "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "severity": severity,
         "event": event_type,
-        "ip": request.remote_addr,
-        "request_method": request.method,
-        "request_path": request.path,
-        "request_content_type": request.content_type,
+        "ip": str(request.remote_addr),
+        "request_method": str(request.method),
+        "request_path": str(request.path),
+        "request_content_type": str(request.content_type),
         **details
     }
     if os.path.exists(LOG_PATH):
@@ -49,69 +49,90 @@ def check_ip_and_key():
         log_event("API_key_rejected", "warning")
         abort(403)
 
-
-class Login(Resource): # done
+"""
+Description: Allow users to send in a username and password to be verified, once its has been verified a token is returned
+Input: username -> str, password -> str
+Requires token: false
+"""
+class Login(Resource):
     def post(self):
+
         data = request.get_json()
         if not data:
-            log_event("invalid_request", "warning")
-            return {"error": "Malformed request"}, 400
+            log_event("invalid_request", "warning", {"details": "No data in body"})
+            return {"info": "Malformed request"}, 400
         elif not isinstance(data.get("username"), str):
-            log_event("invalid_request", "warning")
-            return {"error": "Malformed request"}, 400
+            log_event("invalid_request", "warning", {"details": "No username"})
+            return {"info": "Malformed request"}, 400
         elif not isinstance(data.get("password"), str):
-            log_event("invalid_request", "warning")
-            return {"error": "Malformed request"}, 400
+            log_event("invalid_request", "warning", {"details": "No password"})
+            return {"info": "Malformed request"}, 400
+        
         try:
             id = db_manage.verify_password(data["username"], data["password"])
             if not id:
-                log_event("login_failed", "warning", {"username": data["username"], "reason": "username or password incorrect"})
-                return {"error": "Username or password is incorrect"}, 401
+                log_event("login_failed", "warning", {"username": data["username"], "details": "Username or password incorrect"})
+                return {"info": "Username or password is incorrect"}, 401
             else:
-                log_event("login_successful", "info", )
-                return {"message": "Successful login", "token": db_manage.create_token(id)}, 200
+                log_event("login_successful", "info")
+                return {"info": "Successful login", "token": db_manage.create_token(id)}, 200
         except Exception as e:
-            log_event("login_failed", "error")
-            return {"error": str(e)}, 500
+            log_event("internal_error", "error")
+            return {"info": "An internal error has occurred"}, 500
 
+"""
+Description: Register a new user. User calling this endpoint must have admin role
+Inputs  username -> str, password -> str, role -> str
+Requires token: true
+"""
 class Register(Resource): # done
     def post(self):
+
         data = request.get_json()
         if not data:
-            log_event("invalid_request", "warning")
-            return {"error": "Malformed request"}, 400
+            log_event("invalid_request", "warning", {"details": "No data in Body"})
+            return {"info": "Malformed request"}, 400
         elif not isinstance(data.get("username"), str):
-            log_event("invalid_request", "warning")
-            return {"error": "Malformed request"}, 400
+            log_event("invalid_request", "warning", {"details": "No username"})
+            return {"info": "Malformed request"}, 400
         elif not isinstance(data.get("password"), str):
-            log_event("invalid_request", "warning")
-            return {"error": "Malformed request"}, 400
+            log_event("invalid_request", "warning", {"details": "No password"})
+            return {"info": "Malformed request"}, 400
         elif not isinstance(data.get("role"), str):
-            log_event("invalid_request", "warning")
-            return {"error": "Malformed request"}, 400
+            log_event("invalid_request", "warning", {"details": "No role"})
+            return {"info": "Malformed request"}, 400
+        
         token = request.headers.get("Authorization", "").removeprefix("Bearer ")
         if not token:
-            log_event("no_token", "warning")
-            return {"error": "No token provided"}, 401
+            log_event("no_token", "warning", {"details": "No token"})
+            return {"info": "No token provided"}, 400
+        
+        user_id = db_manage.verify_token(token)
+        if not user_id:
+            log_event("invalid_token", "warning", {"details": "Token is invalid"})
+            return {"info": "Invalid or expired token"}, 401
+        if db_manage.get_role(id) != "admin":
+            log_event("authorization_error", "warning", {"details": "User does not have correct permission level"})
+            return {"info": "Not authorized"}, 401
         try:
             db_manage.register(data["username"], data["password"], data["role"])
             log_event("user_created", "info")
             return {"message": "User created"}, 201
         except ValueError as e:
             log_event("user_creation_failed", "error", {"reason": f"username {data["username"]} is already in use"})
-            return {"error": str(e)}, 409
+            return {"info": "username already exists"}, 409
         except Exception as e:
-            log_event("user_creation_failed", "error", {"new_username": data["username"], "error_data": str(e)})     
-            return {"error": str(e)}, 500
+            log_event("internal_error", "error", {"error": str(e)})   
+            return {"info": "An internal error has occurred"}, 500
         
 class RevokeToken(Resource):
     def post(self):
         data = request.get_json()
         if not data:
-            log_event("invalid_request", "warning")
+            log_event("invalid_request", "warning", {"details": "No data in body"})
             return {"error": "Malformed request"}, 400
         elif not isinstance(data.get("target"), str):
-            log_event("invalid_request", "warning")
+            log_event("invalid_request", "warning", {"details": "No target"})
             return {"error": "Malformed request"}, 400
         token = request.headers.get("Authorization", "").removeprefix("Bearer ")
         if not token:
@@ -204,7 +225,7 @@ class ChangeRole(Resource):
         token = request.headers.get("Authorization", "").removeprefix("Bearer ")
         data = request.get_json()
         if not token:
-            log_event("no_token", "warning")
+            log_event("no_token", "warning", {})
             return {"error": "No token provided"}, 401
         user_id = db_manage.verify_token(token)
         if not user_id:
