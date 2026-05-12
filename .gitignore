@@ -2,3 +2,4 @@ src/__pycache__/
 src/.pytest_cache/
 src/tests/__pycache__/
 src/tests/auth.db
+src/auth_events.json
