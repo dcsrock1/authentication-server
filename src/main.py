@@ -56,7 +56,6 @@ Requires token: false
 """
 class Login(Resource):
     def post(self):
-
         data = request.get_json()
         if not data:
             log_event("invalid_request", "warning", {"details": "No data in body"})
@@ -82,12 +81,11 @@ class Login(Resource):
 
 """
 Description: Register a new user. User calling this endpoint must have admin role
-Inputs  username -> str, password -> str, role -> str
+Inputs  username -> str, password -> str, new_role -> str
 Requires token: true
 """
 class Register(Resource): # done
     def post(self):
-
         data = request.get_json()
         if not data:
             log_event("invalid_request", "warning", {"details": "No data in Body"})
@@ -98,31 +96,31 @@ class Register(Resource): # done
         elif not isinstance(data.get("password"), str):
             log_event("invalid_request", "warning", {"details": "No password"})
             return {"info": "Malformed request"}, 400
-        elif not isinstance(data.get("role"), str):
+        elif not isinstance(data.get("new_role"), str):
             log_event("invalid_request", "warning", {"details": "No role"})
             return {"info": "Malformed request"}, 400
         
         token = request.headers.get("Authorization", "").removeprefix("Bearer ")
         if not token:
             log_event("no_token", "warning", {"details": "No token"})
-            return {"info": "No token provided"}, 400
-        
+            return {"info": "No token provided"}, 401
         user_id = db_manage.verify_token(token)
         if not user_id:
             log_event("invalid_token", "warning", {"details": "Token is invalid"})
             return {"info": "Invalid or expired token"}, 401
-        if db_manage.get_role(id) != "admin":
+        if db_manage.get_role(user_id) != "admin":
             log_event("authorization_error", "warning", {"details": "User does not have correct permission level"})
             return {"info": "Not authorized"}, 401
+        
         try:
-            db_manage.register(data["username"], data["password"], data["role"])
+            db_manage.register(data["username"], data["password"], data["new_role"])
             log_event("user_created", "info")
-            return {"message": "User created"}, 201
+            return {"info": "User created"}, 201
         except ValueError as e:
             log_event("user_creation_failed", "error", {"reason": f"username {data["username"]} is already in use"})
             return {"info": "username already exists"}, 409
         except Exception as e:
-            log_event("internal_error", "error", {"error": str(e)})   
+            log_event("internal_error", "error")   
             return {"info": "An internal error has occurred"}, 500
         
 class RevokeToken(Resource):
@@ -130,37 +128,37 @@ class RevokeToken(Resource):
         data = request.get_json()
         if not data:
             log_event("invalid_request", "warning", {"details": "No data in body"})
-            return {"error": "Malformed request"}, 400
+            return {"info": "Malformed request"}, 400
         elif not isinstance(data.get("target"), str):
             log_event("invalid_request", "warning", {"details": "No target"})
-            return {"error": "Malformed request"}, 400
+            return {"info": "Malformed request"}, 400
         token = request.headers.get("Authorization", "").removeprefix("Bearer ")
         if not token:
             log_event("no_token", "warning")
-            return {"error": "No token provided"}, 401
+            return {"info": "No token provided"}, 401
         user_id = db_manage.verify_token(token)
         if not user_id:
             log_event("invalid_token", "warning")
-            return {"error": "Invalid or expired token"}, 401
+            return {"info": "Invalid or expired token"}, 401
         else:
             db_manage.revoke_token(data["target"])
             log_event("token_revoked", "info", {"user_id": user_id, "token_id": token[-10:]})
-            return {"message": "Token has been successfully revoked"}, 204
+            return {"info": "Token has been successfully revoked"}, 204
         
 class RevokeAllTokens(Resource): 
     def post(self):
         token = request.headers.get("Authorization", "").removeprefix("Bearer ")
         if not token:
             log_event("no_token", "warning")
-            return {"error": "No token provided"}, 401
+            return {"info": "No token provided"}, 401
         user_id = db_manage.verify_token(token)
         if not user_id:
             log_event("invalid_token", "warning")
-            return {"error": "Invalid or expired token"}, 401
+            return {"info": "Invalid or expired token"}, 401
         else:
             db_manage.revoke_all_tokens(user_id)
             log_event("tokens_revoked", "info", {"user_id": user_id})
-            return {"message": "All tokens have been successfully revoked"}, 204
+            return {"info": "All tokens have been successfully revoked"}, 204
         
 
 class ChangeUsername(Resource): 
@@ -169,23 +167,23 @@ class ChangeUsername(Resource):
         data = request.get_json()
         if not token:
             log_event("no_token", "warning")
-            return {"error": "No token provided"}, 401
+            return {"info": "No token provided"}, 401
         user_id = db_manage.verify_token(token)
         if not user_id:
             log_event("invalid_token", "warning")
-            return {"error": "Invalid or expired token"}, 401
+            return {"info": "Invalid or expired token"}, 401
         else:
             if db_manage.get_role(user_id) != "admin":
                 log_event("authorization_invalid", "warning", {"user_id": user_id})
-                return {"error": "Account does not have authorization"}, 403
+                return {"info": "Account does not have authorization"}, 403
             else:
                 try:
                     db_manage.change_username(user_id, data["new_username"])
                     log_event("username_changed", "info", {"user_id": user_id})
-                    return {"message": "Username has been changed"}, 204
+                    return {"info": "Username has been changed"}, 204
                 except ValueError as e:
                     log_event("username_exists", "warning", {"user_id": user_id})
-                    return {"error": "Username already in use"}, 409
+                    return {"info": "Username already in use"}, 409
             
 class ChangePassword(Resource):
     def post(self):
@@ -193,31 +191,30 @@ class ChangePassword(Resource):
         data = request.get_json()
         if not token:
             log_event("no_token", "warning")
-            return {"error": "No token provided"}, 401
+            return {"info": "No token provided"}, 401
         user_id = db_manage.verify_token(token)
         if not user_id:
             log_event("invalid_token", "warning")
-            return {"error": "Invalid or expired token"}, 401
+            return {"info": "Invalid or expired token"}, 401
         else:
             db_manage.change_password(user_id, data["new_password"])
             log_event("password_changed", "info", {"user_id": user_id})
-            return {"message": "password has been changed"}, 204
+            return {"info": "password has been changed"}, 204
         
 class GetRole(Resource):
     def post(self):
         token = request.headers.get("Authorization", "").removeprefix("Bearer ")
-        data = request.get_json()
         if not token:
             log_event("no_token", "warning")
-            return {"error": "No token provided"}, 401
+            return {"info": "No token provided"}, 401
         user_id = db_manage.verify_token(token)
         if not user_id:
             log_event("invalid_token", "warning")
-            return {"error": "Invalid or expired token"}, 401
+            return {"info": "Invalid or expired token"}, 401
         else:
             role = db_manage.get_role(user_id)
             log_event("role_returned", "info", {"user_id": user_id})
-            return {"data": role}
+            return {"info": role}, 200
 
 
 class ChangeRole(Resource):
@@ -226,15 +223,15 @@ class ChangeRole(Resource):
         data = request.get_json()
         if not token:
             log_event("no_token", "warning", {})
-            return {"error": "No token provided"}, 401
+            return {"info": "No token provided"}, 401
         user_id = db_manage.verify_token(token)
         if not user_id:
             log_event("invalid_token", "warning")
-            return {"error": "Invalid or expired token"}, 401
+            return {"info": "Invalid or expired token"}, 401
         else:
             db_manage.set_role(user_id, data["role"])
             log_event("role_changed", "info", {"user_id": user_id})
-            return {"message": "role has been changed"}, 204
+            return {"info": "role has been changed"}, 204
         
 api.add_resource(Login, "/api/login")
 api.add_resource(Register, "/api/register")
