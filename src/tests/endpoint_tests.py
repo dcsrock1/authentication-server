@@ -128,7 +128,7 @@ def test_login_rejected_api_key(client):
 # ── register ─────────────────────────────────────────────────────────────────
 
 def test_register_success(client, admin_headers):
-    response = client.post("/api/register",
+    response = client.post("/api/admin/register",
         content_type="application/json",
         json={"username": "bob", "password": "password123", "new_role": "user"},
         headers=admin_headers
@@ -136,12 +136,12 @@ def test_register_success(client, admin_headers):
     assert response.status_code == 201
 
 def test_register_duplicate(client, admin_headers):
-    client.post("/api/register",
+    client.post("/api/admin/register",
         content_type="application/json",
         json={"username": "bob", "password": "password123", "new_role": "user"},
         headers=admin_headers
     )
-    response = client.post("/api/register",
+    response = client.post("/api/admin/register",
         content_type="application/json",
         json={"username": "bob", "password": "password123", "new_role": "user"},
         headers=admin_headers
@@ -149,7 +149,7 @@ def test_register_duplicate(client, admin_headers):
     assert response.status_code == 409
 
 def test_register_no_token(client, auth_headers):
-    response = client.post("/api/register",
+    response = client.post("/api/admin/register",
         content_type="application/json",
         json={"username": "bob", "password": "password123", "new_role": "user"},
         headers=auth_headers
@@ -157,11 +157,11 @@ def test_register_no_token(client, auth_headers):
     assert response.status_code == 401
 
 def test_register_no_body(client, admin_headers):
-    response = client.post("/api/register", headers=admin_headers, content_type="application/json")
+    response = client.post("/api/admin/register", headers=admin_headers, content_type="application/json")
     assert response.status_code == 400
 
 def test_register_missing_username(client, admin_headers):
-    response = client.post("/api/register",
+    response = client.post("/api/admin/register",
         content_type="application/json",
         json={"password": "password123", "new_role": "user"},
         headers=admin_headers
@@ -169,7 +169,7 @@ def test_register_missing_username(client, admin_headers):
     assert response.status_code == 400
 
 def test_register_missing_password(client, admin_headers):
-    response = client.post("/api/register",
+    response = client.post("/api/admin/register",
         content_type="application/json",
         json={"username": "bob", "new_role": "user"},
         headers=admin_headers
@@ -235,7 +235,7 @@ def test_revoke_all_tokens_no_token(client, auth_headers):
 # ── change username ───────────────────────────────────────────────────────────
 
 def test_change_username_success(client, admin_headers,):
-    response = client.post("/api/change/username",
+    response = client.post("/api/admin/change/username",
         content_type="application/json",
         json={"new_username": "newadmin"},
         headers=admin_headers
@@ -243,7 +243,7 @@ def test_change_username_success(client, admin_headers,):
     assert response.status_code == 204
 
 def test_change_username_not_admin(client, user_headers):
-    response = client.post("/api/change/username",
+    response = client.post("/api/admin/change/username",
         content_type="application/json",
         json={"new_username": "newalice"},
         headers=user_headers
@@ -251,7 +251,7 @@ def test_change_username_not_admin(client, user_headers):
     assert response.status_code == 403
 
 def test_change_username_duplicate(client, admin_headers, user_headers):
-    response = client.post("/api/change/username",
+    response = client.post("/api/admin/change/username",
         content_type="application/json",
         json={"new_username": "alice"},
         headers=admin_headers
@@ -259,7 +259,7 @@ def test_change_username_duplicate(client, admin_headers, user_headers):
     assert response.status_code == 409
 
 def test_change_username_no_token(client, auth_headers):
-    response = client.post("/api/change/username",
+    response = client.post("/api/admin/change/username",
         content_type="application/json",
         json={"new_username": "newname"},
         headers=auth_headers
@@ -300,44 +300,50 @@ def test_change_password_no_token(client, auth_headers):
 # ── get role ──────────────────────────────────────────────────────────────────
 
 def test_get_role_success(client, user_headers):
-    response = client.post("/api/role", headers=user_headers, content_type="application/json")
+    response = client.get("/api/role", headers=user_headers, content_type="application/json")
     assert response.status_code == 200
 
 def test_get_role_returns_role(client, user_headers):
-    response = client.post("/api/role", headers=user_headers, content_type="application/json")
-    assert "info" in response.get_json()
+    response = client.get("/api/role", headers=user_headers, content_type="application/json")
+    assert "role" in response.get_json()
 
 def test_get_role_default_is_user(client, user_headers):
-    response = client.post("/api/role", headers=user_headers, content_type="application/json")
-    assert response.get_json()["info"] == "user"
+    response = client.get("/api/role", headers=user_headers, content_type="application/json")
+    assert response.get_json()["role"] == "user"
 
 def test_get_role_no_token(client, auth_headers):
-    response = client.post("/api/role", headers=auth_headers, content_type="application/json")
+    response = client.get("/api/role", headers=auth_headers, content_type="application/json")
     assert response.status_code == 401
 
 # ── change role ───────────────────────────────────────────────────────────────
 
 def test_change_role_success(client, admin_headers):
-    response = client.post("/api/change/role",
+    db_manage.register("bob", "password123", "user")
+    target_id = db_manage.get_id_by_username("bob")
+    response = client.post("/api/admin/change/role",
         content_type="application/json",
-        json={"role": "admin"},
+        json={"target": target_id, "new_role": "admin"},
         headers=admin_headers
     )
     assert response.status_code == 204
 
 def test_change_role_updates_role(client, admin_headers):
-    client.post("/api/change/role",
+    db_manage.register("bob", "password123", "user")
+    target_id = db_manage.get_id_by_username("bob")
+    client.post("/api/admin/change/role",
         content_type="application/json",
-        json={"role": "admin"},
+        json={"target": target_id, "new_role": "admin"},
         headers=admin_headers
     )
-    response = client.post("/api/role", headers=admin_headers)
-    assert response.get_json()["info"] == "admin"
+    response = client.get("/api/role", headers=admin_headers)
+    assert response.get_json()["role"] == "admin"
 
 def test_change_role_no_token(client, auth_headers):
-    response = client.post("/api/change/role",
+    db_manage.register("bob", "password123", "user")
+    target_id = db_manage.get_id_by_username("bob")
+    response = client.post("/api/admin/change/role",
         content_type="application/json",
-        json={"role": "admin"},
+        json={"target": target_id, "new_role": "admin"},
         headers=auth_headers
     )
     assert response.status_code == 401
