@@ -50,7 +50,7 @@ def check_ip_and_key():
         abort(403)
 
 """
-Description: Allow users to send in a username and password to be verified, once its has been verified a token is returned
+Description: Allows users to send in a username and password to be verified, once its has been verified a token is returned
 Input: username -> str, password -> str
 Requires token: false
 """
@@ -76,8 +76,8 @@ class Login(Resource):
             return {"info": "Successful login", "token": db_manage.create_token(user_id)}, 200
 
 """
-Description: Register a new user. User calling this endpoint must have admin role
-Inputs  username -> str, password -> str, new_role -> str
+Description: Allows admin users to register new users
+Inputs  username -> str, password -> str, role -> str
 Requires token: true
 """
 class AdminRegister(Resource): # done
@@ -92,7 +92,7 @@ class AdminRegister(Resource): # done
         elif not isinstance(data.get("password"), str):
             log_event("invalid_request", "warning", {"details": "No password"})
             return {"info": "Malformed request"}, 400
-        elif not isinstance(data.get("new_role"), str):
+        elif not isinstance(data.get("role"), str):
             log_event("invalid_request", "warning", {"details": "No role"})
             return {"info": "Malformed request"}, 400
         
@@ -109,7 +109,7 @@ class AdminRegister(Resource): # done
             return {"info": "Not authorized"}, 401
         
         try:
-            db_manage.register(data["username"], data["password"], data["new_role"])
+            db_manage.register(data["username"], data["password"], data["role"])
             log_event("user_created", "info")
             return {"info": "User created"}, 201
         except ValueError as e:
@@ -219,10 +219,10 @@ class GetRole(Resource):
         return {"role": role}, 200
 
 class AdminGetRole(Resource):
-    def get(self, target_id):
+    def get(self, target):
         token = request.headers.get("Authorization", "").removeprefix("Bearer ")
 
-        if not isinstance(target_id, int):
+        if not isinstance(target, int):
             log_event("invalid_request", "warning", {"details": "No target id"})
             return {"info": "Malformed request"}, 400
         
@@ -236,18 +236,24 @@ class AdminGetRole(Resource):
             return {"info": "Invalid or expired token"}, 401
 
         if db_manage.get_role(user_id) != "admin":
-            log_event("authorization_error", "warning", {"user_id": user_id, "target": target_id, "details": "User does not have correct permission level"})
+            log_event("authorization_error", "warning", {"user_id": user_id, "target": target, "details": "User does not have correct permission level"})
             return {"info": "Not authorized"}, 401
 
-        if not db_manage.user_exists(target_id):
-            log_event("user_not_found", "warning", {"user_id": user_id, "target": target_id, "details": "Target user not found"})
-            return {"info": "User "}
+        if not db_manage.user_exists(target):
+            log_event("user_not_found", "warning", {"user_id": user_id, "target": target, "details": "Target user not found"})
+            return {"info": "User "}, 404
 
-        role = db_manage.get_role(target_id)
-        log_event("role_returned", "info", {"user_id": user_id, "target": target_id})
+        role = db_manage.get_role(target)
+        log_event("role_returned", "info", {"user_id": user_id, "target": target})
         return {"role": role}
         
-        
+
+
+"""
+Description: Allows admin users to modify the role of another user
+Input: target -> int, role -> str
+Requires token: true
+"""
 class AdminChangeRole(Resource):
     def post(self):
         token = request.headers.get("Authorization", "").removeprefix("Bearer ")
@@ -259,7 +265,7 @@ class AdminChangeRole(Resource):
         elif not isinstance(data.get("target"), int):
             log_event("invalid_request", "warning", {"details": "No target"})
             return {"info": "Malformed request"}, 400
-        elif not isinstance(data.get("new_role"), str):
+        elif not isinstance(data.get("role"), str):
             log_event("invalid_request", "warning", {"details": "No role"})
             return {"info": "Malformed request"}, 400
 
@@ -271,12 +277,17 @@ class AdminChangeRole(Resource):
         if not user_id:
             log_event("invalid_token", "warning")
             return {"info": "Invalid or expired token"}, 401
+        
         if db_manage.get_role(user_id) != "admin":
-            log_event("authorization_error", "warning", {"user_id": user_id, "target": data["target"], "new_role": data["new_role"], "details": "User does not have correct permission level"})
+            log_event("authorization_error", "warning", {"user_id": user_id, "target": data["target"], "role": data["role"], "details": "User does not have correct permission level"})
             return {"info": "Not authorized"}, 401
+        
+        if not db_manage.user_exists(data["target"]):
+            log_event("user_not_found", "warning", {"user_id": user_id, "target": data["target"], "details": "Target user not found"})
+            return {"info": "User not found"}, 404
     
-        db_manage.set_role(data["target"], data["new_role"])
-        log_event("role_changed", "info", {"user_id": user_id, "target": data["target"], "new_role": data["new_role"], "details": "Role was updated successfully"})
+        db_manage.set_role(data["target"], data["role"])
+        log_event("role_changed", "info", {"user_id": user_id, "target": data["target"], "role": data["role"], "details": "Role was updated successfully"})
         return {"info": "role has been changed"}, 204
         
 api.add_resource(Login, "/api/login")
@@ -288,7 +299,7 @@ api.add_resource(GetRole, "/api/role")
 api.add_resource(AdminRegister, "/api/admin/register")
 api.add_resource(AdminChangeRole, "/api/admin/change/role")
 api.add_resource(AdminChangeUsername, "/api/admin/change/username")
-api.add_resource(AdminGetRole, "/api/admin/role/<int:target_id>")
+api.add_resource(AdminGetRole, "/api/admin/role/<int:target>")
 
 if __name__ == "__main__":
     app.run("0.0.0.0", port=9444)

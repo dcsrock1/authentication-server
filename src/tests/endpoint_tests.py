@@ -130,7 +130,7 @@ def test_login_rejected_api_key(client):
 def test_register_success(client, admin_headers):
     response = client.post("/api/admin/register",
         content_type="application/json",
-        json={"username": "bob", "password": "password123", "new_role": "user"},
+        json={"username": "bob", "password": "password123", "role": "user"},
         headers=admin_headers
     )
     assert response.status_code == 201
@@ -138,12 +138,12 @@ def test_register_success(client, admin_headers):
 def test_register_duplicate(client, admin_headers):
     client.post("/api/admin/register",
         content_type="application/json",
-        json={"username": "bob", "password": "password123", "new_role": "user"},
+        json={"username": "bob", "password": "password123", "role": "user"},
         headers=admin_headers
     )
     response = client.post("/api/admin/register",
         content_type="application/json",
-        json={"username": "bob", "password": "password123", "new_role": "user"},
+        json={"username": "bob", "password": "password123", "role": "user"},
         headers=admin_headers
     )
     assert response.status_code == 409
@@ -151,7 +151,7 @@ def test_register_duplicate(client, admin_headers):
 def test_register_no_token(client, auth_headers):
     response = client.post("/api/admin/register",
         content_type="application/json",
-        json={"username": "bob", "password": "password123", "new_role": "user"},
+        json={"username": "bob", "password": "password123", "role": "user"},
         headers=auth_headers
     )
     assert response.status_code == 401
@@ -163,7 +163,7 @@ def test_register_no_body(client, admin_headers):
 def test_register_missing_username(client, admin_headers):
     response = client.post("/api/admin/register",
         content_type="application/json",
-        json={"password": "password123", "new_role": "user"},
+        json={"password": "password123", "role": "user"},
         headers=admin_headers
     )
     assert response.status_code == 400
@@ -171,7 +171,7 @@ def test_register_missing_username(client, admin_headers):
 def test_register_missing_password(client, admin_headers):
     response = client.post("/api/admin/register",
         content_type="application/json",
-        json={"username": "bob", "new_role": "user"},
+        json={"username": "bob", "role": "user"},
         headers=admin_headers
     )
     assert response.status_code == 400
@@ -322,7 +322,7 @@ def test_change_role_success(client, admin_headers):
     target_id = db_manage.get_id_by_username("bob")
     response = client.post("/api/admin/change/role",
         content_type="application/json",
-        json={"target": target_id, "new_role": "admin"},
+        json={"target": target_id, "role": "admin"},
         headers=admin_headers
     )
     assert response.status_code == 204
@@ -332,7 +332,7 @@ def test_change_role_updates_role(client, admin_headers):
     target_id = db_manage.get_id_by_username("bob")
     client.post("/api/admin/change/role",
         content_type="application/json",
-        json={"target": target_id, "new_role": "admin"},
+        json={"target": target_id, "role": "admin"},
         headers=admin_headers
     )
     response = client.get("/api/role", headers=admin_headers)
@@ -343,7 +343,26 @@ def test_change_role_no_token(client, auth_headers):
     target_id = db_manage.get_id_by_username("bob")
     response = client.post("/api/admin/change/role",
         content_type="application/json",
-        json={"target": target_id, "new_role": "admin"},
+        json={"target": target_id, "role": "admin"},
         headers=auth_headers
     )
     assert response.status_code == 401
+
+def test_change_role_no_admin(client, user_headers):
+    db_manage.register("bob", "password123", "user")
+    target_id = db_manage.get_id_by_username("bob")
+    response = client.post("/api/admin/change/role",
+        content_type="application/json",
+        json={"target": target_id, "role": "admin"},
+        headers=user_headers        
+    )
+    assert response.status_code == 401
+    
+def test_change_role_nonexistent_target(client, admin_headers):
+    target_id = 999999
+    response = client.post("/api/admin/change/role",
+        content_type="application/json",
+        json={"target": target_id, "role": "admin"},
+        headers=admin_headers
+    )
+    assert response.status_code == 404

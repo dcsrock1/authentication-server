@@ -111,16 +111,13 @@ def _update_hash(username: str, peppered_password: str) -> None:
         )
 
 # function to check if the the user exists
-def user_exists(username: str) -> bool:
+def user_exists(user_id: int) -> bool:
     with sqlite3.connect(DB_PATH) as conn:
         row = conn.execute(
-            "SELECT EXISTS(SELECT 1 FROM users WHERE username = ?) AS user_exists",
-            (username,)
+            "SELECT EXISTS(SELECT 1 FROM users WHERE id = ?) AS user_exists",
+            (user_id,)
         ).fetchone()
-    if row is None:
-        return False
-    else:
-        return True
+    return bool(row[0])
     
 def get_id_by_username(username: str) -> int | None:
     with sqlite3.connect(DB_PATH) as conn:
