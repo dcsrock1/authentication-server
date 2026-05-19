@@ -297,28 +297,65 @@ def test_change_password_no_token(client, auth_headers):
     )
     assert response.status_code == 401
 
-# ── get role ──────────────────────────────────────────────────────────────────
+# ── get role any ──────────────────────────────────────────────────────────────
 
-def test_get_role_success(client, user_headers):
-    response = client.get("/api/role", headers=user_headers, content_type="application/json")
+def test_get_any_role_success(client, admin_headers):
+    db_manage.register("bob", "password123")
+    target_id = db_manage.get_id_by_username("bob")
+    response = client.get("/api/admin/role", 
+        content_type="application/json",
+        json={"target": target_id},
+        headers=admin_headers
+    )
     assert response.status_code == 200
 
-def test_get_role_returns_role(client, user_headers):
-    response = client.get("/api/role", headers=user_headers, content_type="application/json")
+def test_get_any_role_returns_role(client, admin_headers):
+    db_manage.register("bob", "password123")
+    target_id = db_manage.get_id_by_username("bob")
+    response = client.get("/api/admin/role",
+        content_type="application/json",
+        json={"target": target_id},
+        headers=admin_headers
+    )
     assert "role" in response.get_json()
 
-def test_get_role_default_is_user(client, user_headers):
-    response = client.get("/api/role", headers=user_headers, content_type="application/json")
+def test_get_any_role_default_is_user(client, admin_headers): # FIX THIS !)!)!))!))!)!)!)!))!)!)!)!))!)!)!)!))!)!)!)!))!)!)!)!)!)!)!)!)!)
+    response = client.get("/api/admin/role", headers=admin_headers, content_type="application/json")
     assert response.get_json()["role"] == "user"
 
-def test_get_role_no_token(client, auth_headers):
-    response = client.get("/api/role", headers=auth_headers, content_type="application/json")
+def test_get_any_role_no_token(client, admin_headers):
+    db_manage.register("bob", "password123")
+    target_id = db_manage.get_id_by_username("bob")
+    response = client.get("/api/admin/role",
+        content_type="application/json",
+        json={"target": target_id},
+        headers=auth_headers
+    )
     assert response.status_code == 401
+
+def test_get_any_role_no_admin(client, user_headers):
+    db_manage.register("bob", "password123")
+    target_id = db_manage.get_id_by_username("bob")
+    response = client.get("/api/admin/role",
+        content_type="application/json",
+        json={"target": target_id, "role": "admin"},
+        headers=user_headers        
+    )
+    assert response.status_code == 401
+    
+def test_get_any_role_nonexistent_target(client, admin_headers):
+    target_id = 999999
+    response = client.get("/api/admin/role",
+        content_type="application/json",
+        json={"target": target_id},
+        headers=admin_headers
+    )
+    assert response.status_code == 404
 
 # ── change role ───────────────────────────────────────────────────────────────
 
 def test_change_role_success(client, admin_headers):
-    db_manage.register("bob", "password123", "user")
+    db_manage.register("bob", "password123")
     target_id = db_manage.get_id_by_username("bob")
     response = client.post("/api/admin/change/role",
         content_type="application/json",
@@ -328,18 +365,18 @@ def test_change_role_success(client, admin_headers):
     assert response.status_code == 204
 
 def test_change_role_updates_role(client, admin_headers):
-    db_manage.register("bob", "password123", "user")
+    db_manage.register("bob", "password123")
     target_id = db_manage.get_id_by_username("bob")
     client.post("/api/admin/change/role",
         content_type="application/json",
         json={"target": target_id, "role": "admin"},
         headers=admin_headers
     )
-    response = client.get("/api/role", headers=admin_headers)
+    response = client.get(f"/api/admin/role/{target_id}", headers=admin_headers)
     assert response.get_json()["role"] == "admin"
 
 def test_change_role_no_token(client, auth_headers):
-    db_manage.register("bob", "password123", "user")
+    db_manage.register("bob", "password123")
     target_id = db_manage.get_id_by_username("bob")
     response = client.post("/api/admin/change/role",
         content_type="application/json",
@@ -349,7 +386,7 @@ def test_change_role_no_token(client, auth_headers):
     assert response.status_code == 401
 
 def test_change_role_no_admin(client, user_headers):
-    db_manage.register("bob", "password123", "user")
+    db_manage.register("bob", "password123")
     target_id = db_manage.get_id_by_username("bob")
     response = client.post("/api/admin/change/role",
         content_type="application/json",

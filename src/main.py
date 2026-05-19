@@ -218,6 +218,12 @@ class GetRole(Resource):
         log_event("role_returned", "info", {"user_id": user_id})
         return {"role": role}, 200
 
+
+"""
+Description: Allows admin users to retrieve the role of another user
+Input: target -> int
+Requires token: true
+"""
 class AdminGetRole(Resource):
     def get(self, target):
         token = request.headers.get("Authorization", "").removeprefix("Bearer ")
