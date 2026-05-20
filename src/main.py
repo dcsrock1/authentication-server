@@ -196,11 +196,35 @@ class ChangePassword(Resource):
         if not user_id:
             log_event("invalid_token", "warning")
             return {"info": "Invalid or expired token"}, 401
-        else:
-            db_manage.change_password(user_id, data["new_password"])
-            log_event("password_changed", "info", {"user_id": user_id})
-            return {"info": "password has been changed"}, 204
         
+        db_manage.change_password(user_id, data["password"])
+        log_event("password_changed", "info", {"user_id": user_id})
+        return {"info": "password has been changed"}, 204
+        
+
+
+class AdminChangePassword(Resource):
+    def post(self):
+        token = request.headers.get("Authorization", "").removeprefix("Bearer ")
+        data = request.get_json()
+        
+        if not isinstance(data["target"], int):
+            log_event("invalid_request", "warning", {"details": ""})
+        if not isinstance(data["password"], str):
+            log_event("invalid_request", "warning", {"details": "no password"})
+            return {"info": "Malformed request"}, 400
+        
+        if not token:
+            log_event("no_token", "warning")
+            return {"info": "No token provided"}, 401
+        
+        
+        user_id = db_manage.verify_token(token)
+        if not user_id:
+            log_event("invalid_token", "warning")
+            return {"info": "Invalid or expired token"}, 401
+        
+
 class GetRole(Resource):
     def get(self):
         token = request.headers.get("Authorization", "").removeprefix("Bearer ")
@@ -234,7 +258,7 @@ class AdminGetRole(Resource):
         
         if not token:
             log_event("no_token", "warning", {"details": "No Token"})
-            return {"info", "No token provided"}, 401
+            return {"info": "No token provided"}, 401
         
         user_id = db_manage.verify_token(token)
         if not user_id:

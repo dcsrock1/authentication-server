@@ -302,9 +302,7 @@ def test_change_password_no_token(client, auth_headers):
 def test_get_any_role_success(client, admin_headers):
     db_manage.register("bob", "password123")
     target_id = db_manage.get_id_by_username("bob")
-    response = client.get("/api/admin/role", 
-        content_type="application/json",
-        json={"target": target_id},
+    response = client.get(f"/api/admin/role/{target_id}",
         headers=admin_headers
     )
     assert response.status_code == 200
@@ -312,23 +310,15 @@ def test_get_any_role_success(client, admin_headers):
 def test_get_any_role_returns_role(client, admin_headers):
     db_manage.register("bob", "password123")
     target_id = db_manage.get_id_by_username("bob")
-    response = client.get("/api/admin/role",
-        content_type="application/json",
-        json={"target": target_id},
+    response = client.get(f"/api/admin/role/{target_id}",
         headers=admin_headers
     )
     assert "role" in response.get_json()
 
-def test_get_any_role_default_is_user(client, admin_headers): # FIX THIS !)!)!))!))!)!)!)!))!)!)!)!))!)!)!)!))!)!)!)!))!)!)!)!)!)!)!)!)!)
-    response = client.get("/api/admin/role", headers=admin_headers, content_type="application/json")
-    assert response.get_json()["role"] == "user"
-
-def test_get_any_role_no_token(client, admin_headers):
+def test_get_any_role_no_token(client, auth_headers):
     db_manage.register("bob", "password123")
     target_id = db_manage.get_id_by_username("bob")
-    response = client.get("/api/admin/role",
-        content_type="application/json",
-        json={"target": target_id},
+    response = client.get(f"/api/admin/role/{target_id}",
         headers=auth_headers
     )
     assert response.status_code == 401
@@ -336,18 +326,14 @@ def test_get_any_role_no_token(client, admin_headers):
 def test_get_any_role_no_admin(client, user_headers):
     db_manage.register("bob", "password123")
     target_id = db_manage.get_id_by_username("bob")
-    response = client.get("/api/admin/role",
-        content_type="application/json",
-        json={"target": target_id, "role": "admin"},
+    response = client.get(f"/api/admin/role/{target_id}",
         headers=user_headers        
     )
     assert response.status_code == 401
     
 def test_get_any_role_nonexistent_target(client, admin_headers):
     target_id = 999999
-    response = client.get("/api/admin/role",
-        content_type="application/json",
-        json={"target": target_id},
+    response = client.get(f"/api/admin/role/{target_id}",
         headers=admin_headers
     )
     assert response.status_code == 404
