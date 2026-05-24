@@ -196,7 +196,11 @@ class ChangePassword(Resource):
         if not user_id:
             log_event("invalid_token", "warning")
             return {"info": "Invalid or expired token"}, 401
-        
+
+        if not db_manage.password_secure_check(data["password"]):
+            log_event("Insecure_password", "warning", {"user_id": user_id, "details": "Password provided is insecure"})
+            return {"info": "Insecure password, password change failed"}, 400
+
         db_manage.change_password(user_id, data["password"])
         log_event("password_changed", "info", {"user_id": user_id})
         return {"info": "password has been changed"}, 204
@@ -218,13 +222,27 @@ class AdminChangePassword(Resource):
             log_event("no_token", "warning")
             return {"info": "No token provided"}, 401
         
-        
         user_id = db_manage.verify_token(token)
         if not user_id:
             log_event("invalid_token", "warning")
             return {"info": "Invalid or expired token"}, 401
-        
 
+        if not db_manage.user_exists(data["target"]):
+            log_event("user_not_found", "warning", {"user_id": user_id, "target": data["target"], "details": "Target user not found"})
+            return {"info": "User "}, 404
+
+        if not db_manage.password_secure_check(data["password"]):
+            log_event("Insecure_password", "warning", {"user_id": user_id, "details": "Password provided is insecure"})
+            return {"info": "Insecure password, password change failed"}, 400
+
+        db_manage.change_password(data["target"], data["password"])
+        log_event("password_changed", "info", {"user_id": user_id, "target": data["target"]})
+        
+"""
+Description: Allows a user to retrieve there own role
+Input: None
+Requires token: true
+"""
 class GetRole(Resource):
     def get(self):
         token = request.headers.get("Authorization", "").removeprefix("Bearer ")
@@ -329,6 +347,7 @@ api.add_resource(GetRole, "/api/role")
 api.add_resource(AdminRegister, "/api/admin/register")
 api.add_resource(AdminChangeRole, "/api/admin/change/role")
 api.add_resource(AdminChangeUsername, "/api/admin/change/username")
+api.add_resource(AdminChangePassword, "/api/admin/change/password")
 api.add_resource(AdminGetRole, "/api/admin/role/<int:target>")
 
 if __name__ == "__main__":

@@ -79,6 +79,16 @@ def change_password(user_id: int, new_password: str) -> None:
         if cursor.rowcount == 0:
             raise KeyError(f"User ID '{user_id}' not found")
 
+def password_secure_check(password: str):
+    if len(password) < 9:
+        return False
+    if password.isdigit():
+        return False
+    if password.isalpha():
+        return False
+    
+    return True
+
 # Function for verifying password against the hash in the DB
 def verify_password(username: str, password: str) -> int | bool:
     with sqlite3.connect(DB_PATH) as conn:
