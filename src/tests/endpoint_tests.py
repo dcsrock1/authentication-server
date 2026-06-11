@@ -234,34 +234,38 @@ def test_revoke_all_tokens_no_token(client, auth_headers):
 
 # ── change username ───────────────────────────────────────────────────────────
 
-def test_change_username_success(client, admin_headers,):
+def test_change_username_success(client, admin_headers, user_headers):
+    user_id = db_manage.get_id_by_username("alice")
     response = client.post("/api/admin/change/username",
         content_type="application/json",
-        json={"new_username": "newadmin"},
+        json={"target": user_id, "username": "newadmin"},
         headers=admin_headers
     )
     assert response.status_code == 204
 
 def test_change_username_not_admin(client, user_headers):
+    user_id = db_manage.get_id_by_username("alice")
     response = client.post("/api/admin/change/username",
         content_type="application/json",
-        json={"new_username": "newalice"},
+        json={"target": user_id, "username": "newalice"},
         headers=user_headers
     )
     assert response.status_code == 403
 
 def test_change_username_duplicate(client, admin_headers, user_headers):
+    user_id = db_manage.get_id_by_username("alice")
     response = client.post("/api/admin/change/username",
         content_type="application/json",
-        json={"new_username": "alice"},
+        json={"target": user_id, "username": "alice"},
         headers=admin_headers
     )
     assert response.status_code == 409
 
-def test_change_username_no_token(client, auth_headers):
+def test_change_username_no_token(client, auth_headers, user_headers):
+    user_id = db_manage.get_id_by_username("alice")
     response = client.post("/api/admin/change/username",
         content_type="application/json",
-        json={"new_username": "newname"},
+        json={"target": user_id, "username": "newname"},
         headers=auth_headers
     )
     assert response.status_code == 401
@@ -271,7 +275,7 @@ def test_change_username_no_token(client, auth_headers):
 def test_change_password_success(client, user_headers):
     response = client.post("/api/change/password",
         content_type="application/json",
-        json={"new_password": "newpassword123"},
+        json={"password": "newpassword123"},
         headers=user_headers
     )
     assert response.status_code == 204
@@ -279,7 +283,7 @@ def test_change_password_success(client, user_headers):
 def test_change_password_updates_password(client, auth_headers, user_headers):
     client.post("/api/change/password",
         content_type="application/json",
-        json={"new_password": "newpassword123"},
+        json={"password": "newpassword123"},
         headers=user_headers
     )
     response = client.post("/api/login",
@@ -292,7 +296,7 @@ def test_change_password_updates_password(client, auth_headers, user_headers):
 def test_change_password_no_token(client, auth_headers):
     response = client.post("/api/change/password",
         content_type="application/json",
-        json={"new_password": "newpassword123"},
+        json={"password": "newpassword123"},
         headers=auth_headers
     )
     assert response.status_code == 401

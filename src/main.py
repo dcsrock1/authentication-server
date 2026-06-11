@@ -144,7 +144,9 @@ class RevokeToken(Resource):
         db_manage.revoke_token(data["target"])
         log_event("token_revoked", "info", {"user_id": user_id, "token_id": token[-10:]})
         return {"info": "Token has been successfully revoked"}, 204
-        
+
+    
+
 class RevokeAllTokens(Resource): 
     def post(self):
         token = request.headers.get("Authorization", "").removeprefix("Bearer ")
@@ -165,6 +167,16 @@ class AdminChangeUsername(Resource):
     def post(self):
         token = request.headers.get("Authorization", "").removeprefix("Bearer ")
         data = request.get_json()
+
+        if not data:
+            log_event("invalid_request", "warning", {"details": "No data in body"})
+            return {"info": "Malformed request"}, 400
+        elif not isinstance(data.get("target"), int):
+            log_event("invalid_request", "warning", {"details": "No target"})
+            return {"info": "Malformed request"}, 400
+        elif not isinstance(data.get("username"), str):
+            log_event("invalid_request", "warning", {"details": "No username"})
+
         if not token:
             log_event("no_token", "warning")
             return {"info": "No token provided"}, 401
@@ -178,20 +190,34 @@ class AdminChangeUsername(Resource):
                 return {"info": "Account does not have authorization"}, 403
             else:
                 try:
-                    db_manage.change_username(user_id, data["new_username"])
+                    db_manage.change_username(user_id, data["username"])
                     log_event("username_changed", "info", {"user_id": user_id})
                     return {"info": "Username has been changed"}, 204
                 except ValueError as e:
                     log_event("username_exists", "warning", {"user_id": user_id})
                     return {"info": "Username already in use"}, 409
             
+"""
+Description: Allows a user to change their own password
+Input: password -> str
+Requires token: true
+"""
 class ChangePassword(Resource):
     def post(self):
         token = request.headers.get("Authorization", "").removeprefix("Bearer ")
         data = request.get_json()
+
+        if not data:
+            log_event("invalid_request", "warning", {"details": "no data in body"})
+            return {"info": "Malformed request"}, 400
+        if not isinstance(data.get("password"), str):
+            log_event("invalid_request", "warning", {"details": "no password"})
+            return {"info": "Malformed request"}, 400
+
         if not token:
             log_event("no_token", "warning")
             return {"info": "No token provided"}, 401
+        
         user_id = db_manage.verify_token(token)
         if not user_id:
             log_event("invalid_token", "warning")
@@ -206,15 +232,19 @@ class ChangePassword(Resource):
         return {"info": "password has been changed"}, 204
         
 
-
+"""
+Description: Allows an admin user to change the password of any user
+Input: target -> int, password -> str
+Requires token: true
+"""
 class AdminChangePassword(Resource):
     def post(self):
         token = request.headers.get("Authorization", "").removeprefix("Bearer ")
         data = request.get_json()
         
-        if not isinstance(data["target"], int):
+        if not isinstance(data.get("target"), int):
             log_event("invalid_request", "warning", {"details": ""})
-        if not isinstance(data["password"], str):
+        if not isinstance(data.get("password"), str):
             log_event("invalid_request", "warning", {"details": "no password"})
             return {"info": "Malformed request"}, 400
         

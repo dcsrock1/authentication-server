@@ -1,7 +1,8 @@
 import sqlite3
-import os
+import pyotp
 import secrets
 import datetime
+import time
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError, VerificationError, InvalidHashError
 
@@ -19,6 +20,7 @@ ph = PasswordHasher(
 # Function for initialising the database and creating it if it does not exist
 def init_db() -> None:
     with sqlite3.connect(DB_PATH) as conn:
+        # create and define the users table if it does not already exist
         conn.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -28,6 +30,8 @@ def init_db() -> None:
                 created_at TEXT DEFAULT (datetime('now'))
             )    
         """)
+
+        # create and define the tokens table if it does not already exist
         conn.execute("""
             CREATE TABLE IF NOT EXISTS tokens (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -39,11 +43,25 @@ def init_db() -> None:
             )
         """)
 
+        # create and define the totp table if it does not already exist
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS totp (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL REFERENCES users(id),
+                secret TEXT UNIQUE NOT NULL,
+                created_at TEXT DEFAULT (datetime('now')),
+            )
+        """)
 
-# Function for registering new user accounts with the database
+
+# function for adding new users into the database
 def register(username: str, password: str, role: str="user") -> None:
-    peppered = password + PEPPER
+
+    # append the pepper to the end of the password and hash the result
+    peppered = password + PEPPER 
     pw_hash = ph.hash(peppered)
+
+    # connect to the database and add a new user to the users table with the correct values
     with sqlite3.connect(DB_PATH) as conn:
         try:
             conn.execute(
@@ -54,8 +72,10 @@ def register(username: str, password: str, role: str="user") -> None:
             raise ValueError(f"Username '{username}' already exists")
     
 
-
+# function for changing the username of a user in the database
 def change_username(user_id: int, new_username: str) -> None:
+
+    # connect to the database and change the username of the user with the matching user_id
     with sqlite3.connect(DB_PATH) as conn:
         try:
             cursor = conn.execute(
@@ -64,56 +84,80 @@ def change_username(user_id: int, new_username: str) -> None:
             )
         except sqlite3.IntegrityError:
             raise ValueError(f"Username '{new_username}' is already taken")
+        
+        # check if row count is equal to 0 to determine if the user exists or not
         if cursor.rowcount == 0:
             raise KeyError(f"User '{user_id}' not found")
 
 # function for changing the password in the database
 def change_password(user_id: int, new_password: str) -> None:
+
+    # append the pepper to the end of the password and hash the result
     peppered = new_password + PEPPER
     new_hash = ph.hash(peppered)
+
+    # connect to the database and change the password hash in the users table to the new password
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.execute(
             "UPDATE users SET password_hash = ? WHERE id = ?",
             (new_hash, user_id)
         )
+
+        # check if row count is equal to 0 to determine if the user exists or not
         if cursor.rowcount == 0:
             raise KeyError(f"User ID '{user_id}' not found")
 
+# function to check a password to make sure that it meets security standards
 def password_secure_check(password: str):
-    if len(password) < 9:
-        return False
-    if password.isdigit():
-        return False
-    if password.isalpha():
+
+    if len(password) < 9: # ensure password is more than 9 characters
         return False
     
-    return True
+    if password.isdigit(): # ensure password is not just digits
+        return False
+    
+    if password.isalpha(): # ensure the password is not just alphabetical characters
+        return False
+    
+    return True # return true if all check passed successfully
 
-# Function for verifying password against the hash in the DB
+# function for verifying password against the hash in the DB
 def verify_password(username: str, password: str) -> int | bool:
+
+    # connect to the database and retrieve the password hash from the users table
     with sqlite3.connect(DB_PATH) as conn:
         conn.row_factory = sqlite3.Row
         row = conn.execute(
             "SELECT password_hash FROM users WHERE username = ?",
             (username,)
         ).fetchone()
+
+    # check if row is none to determine if the user exists
     if row is None:
-        return False
+        raise KeyError(f"User '{username}' not found")
     
-    peppered = password + PEPPER
+    # append the pepper to the password string
+    peppered = password + PEPPER 
+
+    # attempt to verify that the password hash in the users table matches the hashed version of the password supplied to this function
     try:
         ph.verify(row["password_hash"], peppered)
     except (VerifyMismatchError, VerificationError, InvalidHashError):
         return False
     
+    # check if the hash stored in the database needs to be updated to meet new hashing parameters
     if ph.check_needs_rehash(row["password_hash"]):
         _update_hash(username, peppered) 
     
-    return get_id_by_username(username)
+    return get_id_by_username(username) # TODO: Replace this with a less janky method of getting the ID as this function should only be used when absolutely needed
 
 # Assisting function for updating the hash in the database
 def _update_hash(username: str, peppered_password: str) -> None:
+    
+    # hash the password with the new hashing parameters
     new_hash = ph.hash(peppered_password)
+
+    # connect to the database and update the password hash to the new hash using the new hashing parameters
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute(
             "UPDATE users SET password_hash = ? WHERE username = ?",
@@ -122,6 +166,8 @@ def _update_hash(username: str, peppered_password: str) -> None:
 
 # function to check if the the user exists
 def user_exists(user_id: int) -> bool:
+
+    # connect to the database and check if a user with the user_id specified exists in the users entity
     with sqlite3.connect(DB_PATH) as conn:
         row = conn.execute(
             "SELECT EXISTS(SELECT 1 FROM users WHERE id = ?) AS user_exists",
@@ -129,42 +175,58 @@ def user_exists(user_id: int) -> bool:
         ).fetchone()
     return bool(row[0])
     
+# utility function to translate the username to the user_id (mainly used in testing)
 def get_id_by_username(username: str) -> int | None:
+
+    # connect to the database and find the row with the matching username then return the corresponding user_id
     with sqlite3.connect(DB_PATH) as conn:
         row = conn.execute(
             "SELECT id FROM users WHERE username = ?",
             (username,)
         ).fetchone()
+    
+    # check if row is none to verify if the user actually exists or not
     if row is None:
         raise KeyError(f"User '{username}' not found")
-    else:
-        return row[0]
 
+    return row[0]
+
+# function to retrieve a dictionary of all user details stored in the database
 def get_user_details(user_id: int) -> dict | None:
+
+    # connect to the database and retrieve all user information
     with sqlite3.connect(DB_PATH) as conn:
         row = conn.execute(
             "SELECT id, username, created_at FROM users WHERE id = ?",
             (user_id,)
         ).fetchone()
 
+        # check if row is none to confirm if the user exists or not
         if row is None:
             raise KeyError(f"User ID '{user_id}' not found")
-        else:
-            return dict(row)
+        
+        return dict(row)
 
 # function to create tokens for user sessions
 def create_token(user_id: int, days_valid: int = 30) -> str:
+
+    # generate a 32 character secret and append the expiry time in days to the end of the string
     token = secrets.token_hex(32)
     expires_at = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=days_valid)
+
+    # connect to the database and insert the newly generated token into the tokens table
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute(
             "INSERT INTO tokens (user_id, token, expires_at) VALUES (?, ?, ?)",
             (user_id, token, expires_at.isoformat())
         )
-    return token
+
+    return token # return new token to caller
 
 # function to validate session tokens
 def verify_token(token: str) -> int | bool:
+
+    # connect to the database and retrieve the matching token if one exists
     with sqlite3.connect(DB_PATH) as conn:
         conn.row_factory = sqlite3.Row
         row = conn.execute(
@@ -172,9 +234,11 @@ def verify_token(token: str) -> int | bool:
             (token,)
         ).fetchone()
         
+        # check if the row is none to confirm if the token exists or not
         if row is None:
             return False
         
+        # check if the token is past its expiry and automatically remove it form the database
         if datetime.datetime.fromisoformat(row["expires_at"]) < datetime.datetime.now(datetime.timezone.utc):
             conn.execute(
                 "DELETE FROM tokens WHERE token = ?",
@@ -182,14 +246,18 @@ def verify_token(token: str) -> int | bool:
             )
             return False
         
+        # update the last used attribute of the token
         conn.execute(
             "UPDATE tokens SET last_used_at = ? WHERE token = ?",
             (datetime.datetime.now(datetime.timezone.utc).isoformat(), token)
         )
-        return row["user_id"]
+
+        return row["user_id"] # return the user_id if the token is successfully verified
 
 # function to revoke a single token
 def revoke_token(token: str) -> None:
+
+    # connect to the database and remove the token matching the supplied token argument
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute(
             "DELETE FROM tokens WHERE token = ?",
@@ -198,6 +266,8 @@ def revoke_token(token: str) -> None:
 
 # function to revoke all tokens at once
 def revoke_all_tokens(user_id: int) -> None:
+
+    # connect to the database and remove all tokens linked to the specified user_id
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute(
             "DELETE FROM tokens WHERE user_id = ?",
@@ -206,12 +276,15 @@ def revoke_all_tokens(user_id: int) -> None:
 
 # function to get all tokens tied to a user id
 def get_all_tokens(user_id: int) -> list:
+
+    # connect to the database and retrieve a list of all tokens currently registered to a specific user_id
     with sqlite3.connect(DB_PATH) as conn:
         conn.row_factory = sqlite3.Row
         rows = conn.execute(
             "SELECT * FROM tokens WHERE user_id = ?",
             (user_id,)
         ).fetchall()
+
     return [dict(row) for row in rows]
 
 # simplifies extracting the id from the token
@@ -219,29 +292,40 @@ def extract_id_from_token(token: str) -> int:
     user_id = token[:-42]
     return user_id
 
-# simplifies extraction the expiry date from the token
+# simplifies extracting the expiry date from the token
 def extract_expiry_date_from_token(token: str) -> str:
     expiry_date = token[-10:]
     return expiry_date
 
 # sets role of a user
 def set_role(user_id: int, role: str) -> None:
+
+    # connect to the database and update the role attribute of a user in the users table
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.execute(
             "UPDATE users SET role = ? WHERE id = ?",
             (role, user_id)
         )
+
+    # check if the rowcount is equal to 0 to confirm if the user exists or not
     if cursor.rowcount == 0:
         raise KeyError(f"User ID '{user_id}' not found")
     
 # gets the role of a user
 def get_role(user_id: int) -> str:
+
+    # connect to the database and retrieve the role of a specified user_id
     with sqlite3.connect(DB_PATH) as conn:
         row = conn.execute(
             "SELECT role FROM users WHERE id = ?",
             (user_id,)
         ).fetchone()
+
+        # check if the row is none to confirm if the user exists or not
         if row is None:
-            return False
-        else:
-            return row[0]
+            raise KeyError(f"User ID '{user_id}' not found")
+        return row[0]
+    
+#def gen_totp_secret(user_id: int) -> str:
+#    secret_key = pyotp.random_base32()
+    
