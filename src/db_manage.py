@@ -1,4 +1,5 @@
 import sqlite3
+import uuid
 import pyotp
 import secrets
 import datetime
@@ -23,7 +24,7 @@ def init_db() -> None:
         # create and define the users table if it does not already exist
         conn.execute("""
             CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id TEXT PRIMARY KEY,
                 username TEXT UNIQUE NOT NULL,
                 password_hash TEXT NOT NULL,
                 role TEXT NOT NULL,
@@ -35,7 +36,7 @@ def init_db() -> None:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS tokens (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL REFERENCES users(id),
+                user_id TEXT NOT NULL REFERENCES users(id),
                 token TEXT UNIQUE NOT NULL,
                 created_at TEXT DEFAULT (datetime('now')),
                 expires_at TEXT NOT NULL,
@@ -44,18 +45,21 @@ def init_db() -> None:
         """)
 
         # create and define the totp table if it does not already exist
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS totp (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL REFERENCES users(id),
-                secret TEXT UNIQUE NOT NULL,
-                created_at TEXT DEFAULT (datetime('now')),
-            )
-        """)
+#        conn.execute("""
+#            CREATE TABLE IF NOT EXISTS totp (
+#                id INTEGER PRIMARY KEY AUTOINCREMENT,
+#                user_id TEXT NOT NULL REFERENCES users(id),
+#                secret TEXT UNIQUE NOT NULL,
+#                created_at TEXT DEFAULT (datetime('now')),
+#            )
+#        """)
 
 
 # function for adding new users into the database
 def register(username: str, password: str, role: str="user") -> None:
+
+    # create a uuid for the user_id field
+    user_id = str(uuid.uuid4())
 
     # append the pepper to the end of the password and hash the result
     peppered = password + PEPPER 
@@ -65,15 +69,15 @@ def register(username: str, password: str, role: str="user") -> None:
     with sqlite3.connect(DB_PATH) as conn:
         try:
             conn.execute(
-                "INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)",
-                (username, pw_hash, role)
+                "INSERT INTO users (id, username, password_hash, role) VALUES (?, ?, ?, ?)",
+                (user_id, username, pw_hash, role)
             )
         except sqlite3.IntegrityError:
             raise ValueError(f"Username '{username}' already exists")
     
 
 # function for changing the username of a user in the database
-def change_username(user_id: int, new_username: str) -> None:
+def change_username(user_id: str, new_username: str) -> None:
 
     # connect to the database and change the username of the user with the matching user_id
     with sqlite3.connect(DB_PATH) as conn:
@@ -90,7 +94,7 @@ def change_username(user_id: int, new_username: str) -> None:
             raise KeyError(f"User '{user_id}' not found")
 
 # function for changing the password in the database
-def change_password(user_id: int, new_password: str) -> None:
+def change_password(user_id: str, new_password: str) -> None:
 
     # append the pepper to the end of the password and hash the result
     peppered = new_password + PEPPER
@@ -165,7 +169,7 @@ def _update_hash(username: str, peppered_password: str) -> None:
         )
 
 # function to check if the the user exists
-def user_exists(user_id: int) -> bool:
+def user_exists(user_id: str) -> bool:
 
     # connect to the database and check if a user with the user_id specified exists in the users entity
     with sqlite3.connect(DB_PATH) as conn:
@@ -192,7 +196,7 @@ def get_id_by_username(username: str) -> int | None:
     return row[0]
 
 # function to retrieve a dictionary of all user details stored in the database
-def get_user_details(user_id: int) -> dict | None:
+def get_user_details(user_id: str) -> dict | None:
 
     # connect to the database and retrieve all user information
     with sqlite3.connect(DB_PATH) as conn:
@@ -208,7 +212,7 @@ def get_user_details(user_id: int) -> dict | None:
         return dict(row)
 
 # function to create tokens for user sessions
-def create_token(user_id: int, days_valid: int = 30) -> str:
+def create_token(user_id: str, days_valid: int = 30) -> str:
 
     # generate a 32 character secret and append the expiry time in days to the end of the string
     token = secrets.token_hex(32)
@@ -265,7 +269,7 @@ def revoke_token(token: str) -> None:
         )
 
 # function to revoke all tokens at once
-def revoke_all_tokens(user_id: int) -> None:
+def revoke_all_tokens(user_id: str) -> None:
 
     # connect to the database and remove all tokens linked to the specified user_id
     with sqlite3.connect(DB_PATH) as conn:
@@ -275,7 +279,7 @@ def revoke_all_tokens(user_id: int) -> None:
         )
 
 # function to get all tokens tied to a user id
-def get_all_tokens(user_id: int) -> list:
+def get_all_tokens(user_id: str) -> list:
 
     # connect to the database and retrieve a list of all tokens currently registered to a specific user_id
     with sqlite3.connect(DB_PATH) as conn:
@@ -298,7 +302,7 @@ def extract_expiry_date_from_token(token: str) -> str:
     return expiry_date
 
 # sets role of a user
-def set_role(user_id: int, role: str) -> None:
+def set_role(user_id: str, role: str) -> None:
 
     # connect to the database and update the role attribute of a user in the users table
     with sqlite3.connect(DB_PATH) as conn:
@@ -312,7 +316,7 @@ def set_role(user_id: int, role: str) -> None:
         raise KeyError(f"User ID '{user_id}' not found")
     
 # gets the role of a user
-def get_role(user_id: int) -> str:
+def get_role(user_id: str) -> str:
 
     # connect to the database and retrieve the role of a specified user_id
     with sqlite3.connect(DB_PATH) as conn:
@@ -326,6 +330,6 @@ def get_role(user_id: int) -> str:
             raise KeyError(f"User ID '{user_id}' not found")
         return row[0]
     
-#def gen_totp_secret(user_id: int) -> str:
+#def gen_totp_secret(user_id: str) -> str:
 #    secret_key = pyotp.random_base32()
     

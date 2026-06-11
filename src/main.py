@@ -68,13 +68,15 @@ class Login(Resource):
             return {"info": "Malformed request"}, 400
         
         user_id = db_manage.verify_password(data["username"], data["password"])
-        if not user_id:
-            log_event("login_failed", "warning", {"username": data["username"], "details": "Username or password incorrect"})
-            return {"info": "Username or password is incorrect"}, 401
-        else:
-            log_event("login_successful", "info")
-            return {"info": "Successful login", "token": db_manage.create_token(user_id)}, 200
-
+        try:
+            if not user_id:
+                log_event("login_failed", "warning", {"username": db_manage.get_id_by_username(data["username"]), "details": "Password is incorrect"})
+                return {"info": "Username or password is incorrect"}, 401
+            else:
+                log_event("login_successful", "info")
+                return {"info": "Successful login", "token": db_manage.create_token(user_id)}, 200
+        except KeyError:
+            log_event("login_failed", "warning", {"username": data["username"], "details": "User does not exist"})
 """
 Description: Allows admin users to register new users
 Inputs  username -> str, password -> str, role -> str
@@ -171,7 +173,7 @@ class AdminChangeUsername(Resource):
         if not data:
             log_event("invalid_request", "warning", {"details": "No data in body"})
             return {"info": "Malformed request"}, 400
-        elif not isinstance(data.get("target"), int):
+        elif not isinstance(data.get("target"), str):
             log_event("invalid_request", "warning", {"details": "No target"})
             return {"info": "Malformed request"}, 400
         elif not isinstance(data.get("username"), str):
@@ -242,7 +244,7 @@ class AdminChangePassword(Resource):
         token = request.headers.get("Authorization", "").removeprefix("Bearer ")
         data = request.get_json()
         
-        if not isinstance(data.get("target"), int):
+        if not isinstance(data.get("target"), str):
             log_event("invalid_request", "warning", {"details": ""})
         if not isinstance(data.get("password"), str):
             log_event("invalid_request", "warning", {"details": "no password"})
@@ -340,7 +342,7 @@ class AdminChangeRole(Resource):
         if not data:
             log_event("invalid_request", "warning", {"details": "No data in body"})
             return {"info": "Malformed request"}, 400
-        elif not isinstance(data.get("target"), int):
+        elif not isinstance(data.get("target"), str):
             log_event("invalid_request", "warning", {"details": "No target"})
             return {"info": "Malformed request"}, 400
         elif not isinstance(data.get("role"), str):
