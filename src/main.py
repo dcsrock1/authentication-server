@@ -67,8 +67,9 @@ class Login(Resource):
             log_event("invalid_request", "warning", {"details": "No password"})
             return {"info": "Malformed request"}, 400
         
-        user_id = db_manage.verify_password(data["username"], data["password"])
         try:
+            user_id = db_manage.verify_password(data["username"], data["password"])
+
             if not user_id:
                 log_event("login_failed", "warning", {"username": db_manage.get_id_by_username(data["username"]), "details": "Password is incorrect"})
                 return {"info": "Username or password is incorrect"}, 401
@@ -77,6 +78,7 @@ class Login(Resource):
                 return {"info": "Successful login", "token": db_manage.create_token(user_id)}, 200
         except KeyError:
             log_event("login_failed", "warning", {"username": data["username"], "details": "User does not exist"})
+            return {"info": "Username or password is incorrect"}, 401
 """
 Description: Allows admin users to register new users
 Inputs  username -> str, password -> str, role -> str
@@ -321,11 +323,11 @@ class AdminGetRole(Resource):
 
         if not db_manage.user_exists(target):
             log_event("user_not_found", "warning", {"user_id": user_id, "target": target, "details": "Target user not found"})
-            return {"info": "User "}, 404
+            return {"info": "User not found"}, 404
 
         role = db_manage.get_role(target)
         log_event("role_returned", "info", {"user_id": user_id, "target": target})
-        return {"role": role}
+        return {"role": role}, 200
         
 
 
