@@ -14,7 +14,7 @@ def clean_db():
 
 def test_register_create_user():
     db_manage.register("bob", "password123")
-    assert db_manage.user_exists("bob"), "User not found, user creation failed"
+    assert db_manage.user_exists(db_manage.get_id_by_username("bob")), "User not found, user creation failed"
 
 def test_register_hashes_password():
     db_manage.register("bob", "password123")
@@ -32,9 +32,9 @@ def test_register_duplicate_username_raises():
 def test_register_different_users():
     db_manage.register("bob", "password123")
     db_manage.register("james", "password321")
-    assert db_manage.user_exists("bob")
-    assert db_manage.user_exists("james")
-
+    assert db_manage.user_exists(db_manage.get_id_by_username("bob"))
+    assert db_manage.user_exists(db_manage.get_id_by_username("james"))
+    
 
 def test_register_unique_hashes():
     db_manage.register("bob", "password123")
@@ -60,7 +60,7 @@ def test_register_wrong_password_verfiy():
 def test_username_change():
     db_manage.register("bob", "password123")
     db_manage.change_username(db_manage.get_id_by_username("bob"), "james")
-    assert db_manage.user_exists("james"), "Username modification failed"
+    assert db_manage.user_exists(db_manage.get_id_by_username("james")), "Username modification failed"
 
 def test_password_change():
     db_manage.register("bob", "password123")
