@@ -334,7 +334,7 @@ def test_get_any_role_no_admin(client, user_headers):
     response = client.get(f"/api/admin/role/{target_id}",
         headers=user_headers        
     )
-    assert response.status_code == 401
+    assert response.status_code == 403
     
 def test_get_any_role_nonexistent_target(client, admin_headers):
     target_id = 999999
@@ -384,7 +384,7 @@ def test_change_role_no_admin(client, user_headers):
         json={"target": target_id, "role": "admin"},
         headers=user_headers        
     )
-    assert response.status_code == 401
+    assert response.status_code == 403
     
 def test_change_role_nonexistent_target(client, admin_headers):
     target_id = str(uuid.uuid4())

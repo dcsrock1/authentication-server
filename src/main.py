@@ -9,7 +9,7 @@ import os
 import db_manage
 
 API_KEY = "test-internal-key"
-ALLOWED_IPS = ["192.168.1.1"]
+ALLOWED_IPS = ["192.168.1.1", "127.0.0.1"]
 LOG_PATH = "auth_events.json"
 
 app = Flask(__name__)
@@ -42,9 +42,9 @@ def log_event(event_type: str, severity: str, details: dict={}) -> None:
 def check_ip_and_key():
     ip = request.remote_addr
     key = request.headers.get("X-Internal-Key")
-    #if ip not in ALLOWED_IPS:
-    #    log_event("ip_rejected", "warning")
-    #    abort(403)
+    if ip not in ALLOWED_IPS:
+        log_event("ip_rejected", "warning")
+        abort(403)
     if key != API_KEY:
         log_event("API_key_rejected", "warning")
         abort(403)
@@ -110,7 +110,7 @@ class AdminRegister(Resource): # done
             return {"info": "Invalid or expired token"}, 401
         if db_manage.get_role(user_id) != "admin":
             log_event("authorization_error", "warning", {"details": "User does not have correct permission level"})
-            return {"info": "Not authorized"}, 401
+            return {"info": "Not authorized"}, 403
         
         try:
             db_manage.register(data["username"], data["password"], data["role"])
@@ -319,8 +319,7 @@ class AdminGetRole(Resource):
 
         if db_manage.get_role(user_id) != "admin":
             log_event("authorization_error", "warning", {"user_id": user_id, "target": target, "details": "User does not have correct permission level"})
-            return {"info": "Not authorized"}, 401
-
+            return {"info": "Not authorized"}, 403
         if not db_manage.user_exists(target):
             log_event("user_not_found", "warning", {"user_id": user_id, "target": target, "details": "Target user not found"})
             return {"info": "User not found"}, 404
@@ -362,7 +361,7 @@ class AdminChangeRole(Resource):
         
         if db_manage.get_role(user_id) != "admin":
             log_event("authorization_error", "warning", {"user_id": user_id, "target": data["target"], "role": data["role"], "details": "User does not have correct permission level"})
-            return {"info": "Not authorized"}, 401
+            return {"info": "Not authorized"}, 403
         
         if not db_manage.user_exists(data["target"]):
             log_event("user_not_found", "warning", {"user_id": user_id, "target": data["target"], "details": "Target user not found"})

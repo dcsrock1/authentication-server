@@ -51,9 +51,9 @@ def test_register_unique_hashes():
 
 def test_register_password_verify():
     db_manage.register("bob", "password123")
-    assert db_manage.verify_password("bob", "password123") != False, "Password verification test has failed, please check password_verify function"
+    assert db_manage.verify_password("bob", "password123"), "Password verification test has failed, please check password_verify function"
 
-def test_register_wrong_password_verfiy():
+def test_register_wrong_password_verify():
     db_manage.register("bob", "password123")
     assert not db_manage.verify_password("bob", "password321"), "Password verification failed allowing any password to be used to login, SERIOUS SECURITY ISSUE"
 
