@@ -304,7 +304,7 @@ class AdminGetRole(Resource):
     def get(self, target):
         token = request.headers.get("Authorization", "").removeprefix("Bearer ")
 
-        if not isinstance(target, int):
+        if not isinstance(target, str):
             log_event("invalid_request", "warning", {"details": "No target id"})
             return {"info": "Malformed request"}, 400
         
@@ -382,7 +382,7 @@ api.add_resource(AdminRegister, "/api/admin/register")
 api.add_resource(AdminChangeRole, "/api/admin/change/role")
 api.add_resource(AdminChangeUsername, "/api/admin/change/username")
 api.add_resource(AdminChangePassword, "/api/admin/change/password")
-api.add_resource(AdminGetRole, "/api/admin/role/<int:target>")
+api.add_resource(AdminGetRole, "/api/admin/role/<target>")
 
 if __name__ == "__main__":
     app.run("0.0.0.0", port=9444)

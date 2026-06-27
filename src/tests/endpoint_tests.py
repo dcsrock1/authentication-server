@@ -3,6 +3,7 @@ import pytest
 import sqlite3
 from main import app
 import db_manage
+import uuid
 
 INTERNAL_KEY = "test-internal-key"
 ALLOWED_IP = "192.168.1.1"
@@ -386,7 +387,7 @@ def test_change_role_no_admin(client, user_headers):
     assert response.status_code == 401
     
 def test_change_role_nonexistent_target(client, admin_headers):
-    target_id = 999999
+    target_id = str(uuid.uuid4())
     response = client.post("/api/admin/change/role",
         content_type="application/json",
         json={"target": target_id, "role": "admin"},

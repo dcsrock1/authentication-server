@@ -35,6 +35,7 @@ def test_register_different_users():
     assert db_manage.user_exists("bob")
     assert db_manage.user_exists("james")
 
+
 def test_register_unique_hashes():
     db_manage.register("bob", "password123")
     db_manage.register("james", "password321")

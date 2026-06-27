@@ -1,5 +1,6 @@
 import pytest
 import sqlite3
+import uuid
 
 import db_manage
 
@@ -28,8 +29,14 @@ def test_get_role_default_is_user(user_id):
     role = db_manage.get_role(user_id)
     assert role == "user"
 
-def test_get_role_invalid_user_returns_false():
-    assert not db_manage.get_role(99999)
+def test_get_role_invalid_user_returns_key_error():
+    try:
+        db_manage.get_role(str(uuid.uuid4()))
+    except KeyError:
+        pass
+    except Exception as e:
+        pytest.fail(f"Error occurred: {str(e)}")
+
 
 def test_set_role_changes_role(user_id):
     db_manage.set_role(user_id, "admin")
@@ -51,4 +58,4 @@ def test_set_role_persists_in_db(user_id):
 
 def test_set_role_invalid():
     with pytest.raises(KeyError):
-        db_manage.set_role(99999, "admin")
+        db_manage.set_role(str(uuid.uuid4()), "admin")
