@@ -370,7 +370,20 @@ class AdminChangeRole(Resource):
         db_manage.set_role(data["target"], data["role"])
         log_event("role_changed", "info", {"user_id": user_id, "target": data["target"], "role": data["role"], "details": "Role was updated successfully"})
         return {"info": "role has been changed"}, 204
-        
+
+class CreateApiToken(Resource):
+    def post(self):
+        token = request.headers.get("Authorization", "").removeprefix("Bearer ")
+        data = request.get_json()
+
+        if not data:
+            log_event("invalid_request", "warning", {"details": "No data in body"})
+            return {"info": "Malformed request"}, 400
+        elif not isinstance(data.get("target"), str):
+            log_event("invalid_request", "warning", {"details": "No target"})
+            return {"info": "Malformed request"}, 400
+
+
 api.add_resource(Login, "/api/login")
 api.add_resource(RevokeToken, "/api/revoke/token")
 api.add_resource(RevokeAllTokens, "/api/revoke/tokens")
