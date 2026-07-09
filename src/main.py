@@ -379,9 +379,77 @@ class CreateApiToken(Resource):
         if not data:
             log_event("invalid_request", "warning", {"details": "No data in body"})
             return {"info": "Malformed request"}, 400
+        elif not isinstance(data.get("label"), str):
+            log_event("invalid_request", "warning", {"details": "No label"})
+            return {"info": "Malformed request"}, 400
+
+        user_id = db_manage.verify_token(token)
+        if not user_id:
+            log_event("invalid_token", "warning")
+            return {"info": "Invalid or expired token"}, 401
+        
+        return {"api_key": db_manage.create_api_token(user_id, data["label"])}, 200
+        
+
+class AdminCreateApiToken(Resource):
+    def post(self):
+        token = request.headers.get("Authorization", "").removeprefix("Bearer ")
+        data = request.get_json()
+
+        if not data:
+            log_event("invalid_request", "warning", {"details": "No data in body"})
+            return {"info": "Malformed request"}, 400
         elif not isinstance(data.get("target"), str):
             log_event("invalid_request", "warning", {"details": "No target"})
             return {"info": "Malformed request"}, 400
+        elif not isinstance(data.get("label"), str):
+            log_event("invalid_request", "warning", {"details": "No label"})
+            return {"info": "Malformed request"}, 400
+
+        user_id = db_manage.verify_token(token)
+        if not user_id:
+            log_event("invalid_token", "warning")
+            return {"info": "Invalid or expired token"}, 401
+        
+        if db_manage.get_role(user_id) != "admin":
+            log_event("authorization_error", "warning", {"user_id": user_id, "target": data["target"], "role": data["role"], "details": "User does not have correct permission level"})
+            return {"info": "Not authorized"}, 403
+            
+        if not db_manage.user_exists(data["target"]):
+            log_event("user_not_found", "warning", {"user_id": user_id, "target": data["target"], "details": "Target user not found"})
+            return {"info": "User not found"}, 404
+
+        return {"api_key": db_manage.create_api_token(data["target"], data["label"])}, 200
+        
+class RevokeApiToken(Resource):
+    def post():
+        token = request.headers.get("Authorization", "").removeprefix("Bearer ")
+        data = request.get_json()
+
+        if not data:
+            log_event("invalid_request", "warning", {"details": "No data in body"})
+            return {"info": "Malformed request"}, 400
+        elif not isinstance(data.get("target"), str):
+            log_event("invalid_request", "warning", {"details": "No target"})
+            return {"info": "Malformed request"}, 400
+
+        user_id = db_manage.verify_token(token)
+        if not user_id:
+            log_event("invalid_token", "warning")
+            return {"info": "Invalid or expired token"}, 401
+        
+
+
+class AdminRevokeApiToken(Resource):
+    def post():
+        token = request.headers.get("Authorization", "").removeprefix("Bearer ")
+        data = request.get_json()
+
+        if not data:
+            log_event("invalid_request", "warning", {"details": "No data in body"})
+            return {"info": "Malformed request"}, 400
+        elif not isinstance(data.get("target"), str):
+            log_event("invalid_request", "warning", {"details": "No target"})
 
 
 api.add_resource(Login, "/api/login")
@@ -389,12 +457,14 @@ api.add_resource(RevokeToken, "/api/revoke/token")
 api.add_resource(RevokeAllTokens, "/api/revoke/tokens")
 api.add_resource(ChangePassword, "/api/change/password")
 api.add_resource(GetRole, "/api/role")
+api.add_resource(CreateApiToken, "/api/create/api_key")
 
 api.add_resource(AdminRegister, "/api/admin/register")
 api.add_resource(AdminChangeRole, "/api/admin/change/role")
 api.add_resource(AdminChangeUsername, "/api/admin/change/username")
 api.add_resource(AdminChangePassword, "/api/admin/change/password")
 api.add_resource(AdminGetRole, "/api/admin/role/<target>")
+api.add_resource(AdminCreateApiToken, "/api/admin/create/api_key")
 
 if __name__ == "__main__":
     app.run("0.0.0.0", port=9444)
