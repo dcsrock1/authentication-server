@@ -126,7 +126,6 @@ class AdminRegister(Resource): # done
         
 class RevokeToken(Resource):
     def delete(self):
-        token = request.headers.get("Authorization", "").removeprefix("Bearer ")
         data = request.get_json()
 
         if not data:
@@ -136,11 +135,12 @@ class RevokeToken(Resource):
             log_event("invalid_request", "warning", {"details": "No target"})
             return {"info": "Malformed request"}, 400
         
+        token = request.headers.get("Authorization", "").removeprefix("Bearer ")
         if not token:
             log_event("no_token", "warning")
             return {"info": "No token provided"}, 401
+        
         user_id = db_manage.verify_token(token)
-
         if not user_id:
             log_event("invalid_token", "warning")
             return {"info": "Invalid or expired token"}, 401
@@ -154,8 +154,8 @@ class RevokeToken(Resource):
 
 class RevokeAllTokens(Resource): 
     def delete(self):
-        token = request.headers.get("Authorization", "").removeprefix("Bearer ")
         
+        token = request.headers.get("Authorization", "").removeprefix("Bearer ")
         if not token:
             log_event("no_token", "warning")
             return {"info": "No token provided"}, 401
@@ -172,7 +172,6 @@ class RevokeAllTokens(Resource):
 
 class AdminChangeUsername(Resource): 
     def post(self):
-        token = request.headers.get("Authorization", "").removeprefix("Bearer ")
         data = request.get_json()
 
         if not data:
@@ -183,7 +182,8 @@ class AdminChangeUsername(Resource):
             return {"info": "Malformed request"}, 400
         elif not isinstance(data.get("username"), str):
             log_event("invalid_request", "warning", {"details": "No username"})
-
+        
+        token = request.headers.get("Authorization", "").removeprefix("Bearer ")
         if not token:
             log_event("no_token", "warning")
             return {"info": "No token provided"}, 401
@@ -211,7 +211,6 @@ Requires token: true
 """
 class ChangePassword(Resource):
     def post(self):
-        token = request.headers.get("Authorization", "").removeprefix("Bearer ")
         data = request.get_json()
 
         if not data:
@@ -220,7 +219,8 @@ class ChangePassword(Resource):
         if not isinstance(data.get("password"), str):
             log_event("invalid_request", "warning", {"details": "no password"})
             return {"info": "Malformed request"}, 400
-
+        
+        token = request.headers.get("Authorization", "").removeprefix("Bearer ")
         if not token:
             log_event("no_token", "warning")
             return {"info": "No token provided"}, 401
@@ -246,7 +246,6 @@ Requires token: true
 """
 class AdminChangePassword(Resource):
     def post(self):
-        token = request.headers.get("Authorization", "").removeprefix("Bearer ")
         data = request.get_json()
         
         if not isinstance(data.get("target"), str):
@@ -255,6 +254,7 @@ class AdminChangePassword(Resource):
             log_event("invalid_request", "warning", {"details": "no password"})
             return {"info": "Malformed request"}, 400
         
+        token = request.headers.get("Authorization", "").removeprefix("Bearer ")
         if not token:
             log_event("no_token", "warning")
             return {"info": "No token provided"}, 401
@@ -282,8 +282,8 @@ Requires token: true
 """
 class GetRole(Resource):
     def get(self):
+        
         token = request.headers.get("Authorization", "").removeprefix("Bearer ")
-
         if not token:
             log_event("no_token", "warning")
             return {"info": "No token provided"}, 401
@@ -305,12 +305,12 @@ Requires token: true
 """
 class AdminGetRole(Resource):
     def get(self, target):
-        token = request.headers.get("Authorization", "").removeprefix("Bearer ")
 
         if not isinstance(target, str):
             log_event("invalid_request", "warning", {"details": "No target id"})
             return {"info": "Malformed request"}, 400
         
+        token = request.headers.get("Authorization", "").removeprefix("Bearer ")
         if not token:
             log_event("no_token", "warning", {"details": "No Token"})
             return {"info": "No token provided"}, 401
@@ -340,7 +340,6 @@ Requires token: true
 """
 class AdminChangeRole(Resource):
     def post(self):
-        token = request.headers.get("Authorization", "").removeprefix("Bearer ")
         data = request.get_json()
         
         if not data:
@@ -353,6 +352,7 @@ class AdminChangeRole(Resource):
             log_event("invalid_request", "warning", {"details": "No role"})
             return {"info": "Malformed request"}, 400
 
+        token = request.headers.get("Authorization", "").removeprefix("Bearer ")
         if not token:
             log_event("no_token", "warning", {"details": "No token"})
             return {"info": "No token provided"}, 401
@@ -376,7 +376,6 @@ class AdminChangeRole(Resource):
 
 class CreateApiToken(Resource):
     def post(self):
-        token = request.headers.get("Authorization", "").removeprefix("Bearer ")
         data = request.get_json()
 
         if not data:
@@ -385,6 +384,11 @@ class CreateApiToken(Resource):
         elif not isinstance(data.get("label"), str):
             log_event("invalid_request", "warning", {"details": "No label"})
             return {"info": "Malformed request"}, 400
+
+        token = request.headers.get("Authorization", "").removeprefix("Bearer ")
+        if not token:
+            log_event("no_token", "warning")
+            return {"info": "No token provided"}, 401
 
         user_id = db_manage.verify_token(token)
         if not user_id:
@@ -396,7 +400,6 @@ class CreateApiToken(Resource):
 
 class AdminCreateApiToken(Resource):
     def post(self):
-        token = request.headers.get("Authorization", "").removeprefix("Bearer ")
         data = request.get_json()
 
         if not data:
@@ -408,6 +411,11 @@ class AdminCreateApiToken(Resource):
         elif not isinstance(data.get("label"), str):
             log_event("invalid_request", "warning", {"details": "No label"})
             return {"info": "Malformed request"}, 400
+
+        token = request.headers.get("Authorization", "").removeprefix("Bearer ")
+        if not token:
+            log_event("no_token", "warning")
+            return {"info": "No token provided"}, 401
 
         user_id = db_manage.verify_token(token)
         if not user_id:
@@ -426,7 +434,6 @@ class AdminCreateApiToken(Resource):
         
 class RevokeApiToken(Resource):
     def delete():
-        token = request.headers.get("Authorization", "").removeprefix("Bearer ")
         data = request.get_json()
 
         if not data:
@@ -435,6 +442,11 @@ class RevokeApiToken(Resource):
         elif not isinstance(data.get("target"), str):
             log_event("invalid_request", "warning", {"details": "No target"})
             return {"info": "Malformed request"}, 400
+
+        token = request.headers.get("Authorization", "").removeprefix("Bearer ")
+        if not token:
+            log_event("no_token", "warning")
+            return {"info": "No token provided"}, 401
 
         user_id = db_manage.verify_token(token)
         if not user_id:
@@ -450,7 +462,6 @@ class RevokeApiToken(Resource):
         
 class AdminRevokeApiToken(Resource):
     def delete():
-        token = request.headers.get("Authorization", "").removeprefix("Bearer ")
         data = request.get_json()
 
         if not data:
@@ -459,6 +470,7 @@ class AdminRevokeApiToken(Resource):
         elif not isinstance(data.get("target"), str):
             log_event("invalid_request", "warning", {"details": "No target"})
         
+        token = request.headers.get("Authorization", "").removeprefix("Bearer ")
         if not token:
             log_event("no_token", "warning", {"details": ""})
 
