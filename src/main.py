@@ -79,6 +79,7 @@ class Login(Resource):
         except KeyError:
             log_event("login_failed", "warning", {"username": data["username"], "details": "User does not exist"})
             return {"info": "Username or password is incorrect"}, 401
+
 """
 Description: Allows admin users to register new users
 Inputs  username -> str, password -> str, role -> str
@@ -104,10 +105,12 @@ class AdminRegister(Resource): # done
         if not token:
             log_event("no_token", "warning", {"details": "No token"})
             return {"info": "No token provided"}, 401
+        
         user_id = db_manage.verify_token(token)
         if not user_id:
             log_event("invalid_token", "warning", {"details": "Token is invalid"})
             return {"info": "Invalid or expired token"}, 401
+        
         if db_manage.get_role(user_id) != "admin":
             log_event("authorization_error", "warning", {"details": "User does not have correct permission level"})
             return {"info": "Not authorized"}, 403
@@ -119,9 +122,7 @@ class AdminRegister(Resource): # done
         except ValueError as e:
             log_event("user_creation_failed", "error", {"reason": f"username {data["username"]} is already in use"})
             return {"info": "username already exists"}, 409
-        except Exception as e:
-            log_event("internal_error", "error")   
-            return {"info": "An internal error has occurred"}, 500
+
         
 class RevokeToken(Resource):
     def delete(self):
@@ -154,17 +155,19 @@ class RevokeToken(Resource):
 class RevokeAllTokens(Resource): 
     def delete(self):
         token = request.headers.get("Authorization", "").removeprefix("Bearer ")
+        
         if not token:
             log_event("no_token", "warning")
             return {"info": "No token provided"}, 401
+        
         user_id = db_manage.verify_token(token)
         if not user_id:
             log_event("invalid_token", "warning")
             return {"info": "Invalid or expired token"}, 401
-        else:
-            db_manage.revoke_all_tokens(user_id)
-            log_event("tokens_revoked", "info", {"user_id": user_id})
-            return {"info": "All tokens have been successfully revoked"}, 204
+        
+        db_manage.revoke_all_tokens(user_id)
+        log_event("tokens_revoked", "info", {"user_id": user_id})
+        return {"info": "All tokens have been successfully revoked"}, 204
         
 
 class AdminChangeUsername(Resource): 
@@ -456,6 +459,9 @@ class AdminRevokeApiToken(Resource):
         elif not isinstance(data.get("target"), str):
             log_event("invalid_request", "warning", {"details": "No target"})
         
+        if not token:
+            log_event("no_token", "warning", {"details": ""})
+
         user_id = db_manage.verify_token(token)
         if not user_id:
             log_event("invalid_token", "warning")

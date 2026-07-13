@@ -189,6 +189,15 @@ def user_exists(user_id: str) -> bool:
         ).fetchone()
     return bool(row[0])
     
+# function to check if a username is in use
+def check_username(username: str) -> bool:
+    
+    with sqlite3.connect(DB_PATH) as conn:
+        row = conn.execute(
+            ""
+        )
+
+
 # utility function to translate the username to the user_id (mainly used in testing)
 def get_id_by_username(username: str) -> int | None:
 
