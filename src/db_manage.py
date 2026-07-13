@@ -340,6 +340,7 @@ def get_role(user_id: str) -> str:
             raise KeyError(f"User ID '{user_id}' not found")
         return row[0]
 
+# Creates an api token that does not expire tied to a specific user account
 def create_api_token(user_id: str, label: str) -> str:
     token = secrets.token_hex(32)
     with sqlite3.connect(DB_PATH) as conn:
@@ -349,6 +350,7 @@ def create_api_token(user_id: str, label: str) -> str:
         ) 
     return token
 
+# Verifies an api token is valid and returns the user id it is tied to
 def verify_api_token(token: str) -> str | False:
     with sqlite3.connect(DB_PATH) as conn:
         row = conn.execute(
@@ -363,6 +365,7 @@ def verify_api_token(token: str) -> str | False:
         )
     return row[0]
     
+# Revokes an api token from a user
 def revoke_api_token(token: str) -> None:
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.execute(
@@ -371,6 +374,7 @@ def revoke_api_token(token: str) -> None:
         if cursor.rowcount == 0:
             raise KeyError("API token not found")
 
+# gets a list of all api key parsed from SQL to a python dict
 def get_api_tokens(user_id: str) -> list[dict]:
     with sqlite3.connect(DB_PATH) as conn:
         conn.row_factory = sqlite3.Row

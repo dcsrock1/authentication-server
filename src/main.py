@@ -124,7 +124,7 @@ class AdminRegister(Resource): # done
             return {"info": "An internal error has occurred"}, 500
         
 class RevokeToken(Resource):
-    def post(self):
+    def delete(self):
         token = request.headers.get("Authorization", "").removeprefix("Bearer ")
         data = request.get_json()
 
@@ -152,7 +152,7 @@ class RevokeToken(Resource):
     
 
 class RevokeAllTokens(Resource): 
-    def post(self):
+    def delete(self):
         token = request.headers.get("Authorization", "").removeprefix("Bearer ")
         if not token:
             log_event("no_token", "warning")
@@ -422,7 +422,7 @@ class AdminCreateApiToken(Resource):
         return {"api_key": db_manage.create_api_token(data["target"], data["label"])}, 200
         
 class RevokeApiToken(Resource):
-    def post():
+    def delete():
         token = request.headers.get("Authorization", "").removeprefix("Bearer ")
         data = request.get_json()
 
@@ -438,10 +438,14 @@ class RevokeApiToken(Resource):
             log_event("invalid_token", "warning")
             return {"info": "Invalid or expired token"}, 401
         
+        if db_manage.verify_api_token(data["target"]) != user_id:
+            log_event("token_user_mismatch", "warning", {"user_id": user_id, "details": "User attempted to revoke an API key that does not belong to them"})
 
-
+        return {"info": "token revoked successfully"}, 204
+        
+        
 class AdminRevokeApiToken(Resource):
-    def post():
+    def delete():
         token = request.headers.get("Authorization", "").removeprefix("Bearer ")
         data = request.get_json()
 
@@ -450,6 +454,12 @@ class AdminRevokeApiToken(Resource):
             return {"info": "Malformed request"}, 400
         elif not isinstance(data.get("target"), str):
             log_event("invalid_request", "warning", {"details": "No target"})
+        
+        user_id = db_manage.verify_token(token)
+        if not user_id:
+            log_event("invalid_token", "warning")
+            return {"info": "Invalid or expired token"}, 401
+        
 
 
 api.add_resource(Login, "/api/login")
@@ -458,6 +468,7 @@ api.add_resource(RevokeAllTokens, "/api/revoke/tokens")
 api.add_resource(ChangePassword, "/api/change/password")
 api.add_resource(GetRole, "/api/role")
 api.add_resource(CreateApiToken, "/api/create/api_key")
+api.add_resource(RevokeApiToken, "/api/revoke/api_token")
 
 api.add_resource(AdminRegister, "/api/admin/register")
 api.add_resource(AdminChangeRole, "/api/admin/change/role")
@@ -465,6 +476,7 @@ api.add_resource(AdminChangeUsername, "/api/admin/change/username")
 api.add_resource(AdminChangePassword, "/api/admin/change/password")
 api.add_resource(AdminGetRole, "/api/admin/role/<target>")
 api.add_resource(AdminCreateApiToken, "/api/admin/create/api_key")
+api.add_resource(AdminRevokeApiToken, "/api/admin/revoke/api_token")
 
 if __name__ == "__main__":
     app.run("0.0.0.0", port=9444)
