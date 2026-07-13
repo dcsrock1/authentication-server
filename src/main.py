@@ -465,7 +465,9 @@ class AdminRevokeApiToken(Resource):
             log_event("authorization_error", "warning", {"user_id": user_id, "target": data["target"], "role": data["role"], "details": "User does not have correct permission level"})
             return {"info": "Not authorized"}, 403
     
-
+        if db_manage.user_exists(data["target"]):
+            log_event("user_not_found", "warning", {"user_id": user_id, "target": data["target"], "details": "Target user not found"})
+            return {"info": ""}
 
 api.add_resource(Login, "/api/login")
 api.add_resource(RevokeToken, "/api/revoke/token")
