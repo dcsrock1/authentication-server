@@ -503,7 +503,16 @@ class AdminRevokeApiToken(Resource):
         
 class GetApiKeys(Resource):
     def get(self):
-        pass
+        
+        token = request.headers.get("Authorization ", "").removeprefix("Bearer ")
+        if not token:
+            log_event("invalid_token", "warning")
+            return {"info": "No token provided"}, 401
+        
+        user_id = db_manage.verify_token(token)
+        if not user_id:
+            log_event("invalid_token", "warning")
+            return {"info": "Invalid or expired token"}
 
 api.add_resource(Login, "/api/login")
 api.add_resource(RevokeToken, "/api/revoke/token")
