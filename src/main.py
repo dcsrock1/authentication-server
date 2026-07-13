@@ -170,6 +170,19 @@ class RevokeAllTokens(Resource):
         return {"info": "All tokens have been successfully revoked"}, 204
         
 
+class GetAllTokens(Resource):
+    def get(self):
+        
+        token = request.headers.get("Authorization ", "").removeprefix("Bearer ")
+        if not token:
+            log_event("no_token", "warning")
+            return {"info": "No token provided"}, 401
+        
+        user_id = db_manage.verify_token(token)
+        if not user_id:
+            log_event("invalid_token", "warning")
+            return {"info": "Invalid or expired token"}, 401
+
 class AdminChangeUsername(Resource): 
     def post(self):
         data = request.get_json()
@@ -461,7 +474,7 @@ class RevokeApiToken(Resource):
         
         
 class AdminRevokeApiToken(Resource):
-    def delete():
+    def delete(self):
         data = request.get_json()
 
         if not data:
@@ -487,6 +500,10 @@ class AdminRevokeApiToken(Resource):
         if db_manage.user_exists(data["target"]):
             log_event("user_not_found", "warning", {"user_id": user_id, "target": data["target"], "details": "Target user not found"})
             return {"info": ""}
+        
+class GetApiKeys(Resource):
+    def get(self):
+        pass
 
 api.add_resource(Login, "/api/login")
 api.add_resource(RevokeToken, "/api/revoke/token")
