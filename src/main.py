@@ -473,6 +473,7 @@ class AdminRevokeApiToken(Resource):
         token = request.headers.get("Authorization", "").removeprefix("Bearer ")
         if not token:
             log_event("no_token", "warning", {"details": ""})
+            return {"info": "No token provided"}, 401
 
         user_id = db_manage.verify_token(token)
         if not user_id:
