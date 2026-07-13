@@ -440,6 +440,7 @@ class RevokeApiToken(Resource):
         
         if db_manage.verify_api_token(data["target"]) != user_id:
             log_event("token_user_mismatch", "warning", {"user_id": user_id, "details": "User attempted to revoke an API key that does not belong to them"})
+            return {"info": "API key not found"}, 404
 
         return {"info": "token revoked successfully"}, 204
         
@@ -460,6 +461,10 @@ class AdminRevokeApiToken(Resource):
             log_event("invalid_token", "warning")
             return {"info": "Invalid or expired token"}, 401
         
+        if db_manage.get_role(user_id) != "admin":
+            log_event("authorization_error", "warning", {"user_id": user_id, "target": data["target"], "role": data["role"], "details": "User does not have correct permission level"})
+            return {"info": "Not authorized"}, 403
+    
 
 
 api.add_resource(Login, "/api/login")
