@@ -499,7 +499,7 @@ class AdminRevokeApiToken(Resource):
     
         if db_manage.user_exists(data["target"]):
             log_event("user_not_found", "warning", {"user_id": user_id, "target": data["target"], "details": "Target user not found"})
-            return {"info": ""}
+            return {"info": "API token successfully revoked"}, 204
         
 class GetApiKeys(Resource):
     def get(self):
@@ -512,7 +512,30 @@ class GetApiKeys(Resource):
         user_id = db_manage.verify_token(token)
         if not user_id:
             log_event("invalid_token", "warning")
-            return {"info": "Invalid or expired token"}
+            return {"info": "Invalid or expired token"}, 401
+
+
+        log_event("get_api_keys", "info", {"user_id": user_id, "details": "user retrieved all api keys tied to the account"})
+        return jsonify(db_manage.get_api_tokens(user_id))
+
+class AdminGetApiKeys(Resource):
+    def get(self):
+
+        token = request.headers.get("Authorization ", "").removeprefix("Bearer ")
+        if not token:
+            log_event("invalid_token", "warning")
+            return {"info": "Invalid or expired token"}, 401
+
+        user_id = db_manage.verify_token(token)
+        if not user_id:
+            log_event("invalid_token", "warning")
+            return {"info": "Invalid or expired token"}, 401
+        
+        if db_manage.get_role(user_id) != "admin":
+            log_event("authorization_error", "warning", {"user_id": user_id, "target": data["target"], "role": data["role"], "details": "User does not have correct permission level"})
+            return {"info": "Not authorized"}, 403
+        
+        
 
 api.add_resource(Login, "/api/login")
 api.add_resource(RevokeToken, "/api/revoke/token")
