@@ -446,7 +446,7 @@ class AdminCreateApiToken(Resource):
         return {"api_key": db_manage.create_api_token(data["target"], data["label"])}, 200
         
 class RevokeApiToken(Resource):
-    def delete():
+    def delete(self):
         data = request.get_json()
 
         if not data:
@@ -519,7 +519,10 @@ class GetApiKeys(Resource):
         return jsonify(db_manage.get_api_tokens(user_id))
 
 class AdminGetApiKeys(Resource):
-    def get(self):
+    def get(self, target):
+
+        if target.isalpha():
+            log_event("invalid_request", "warning", {"details": "target is inscorrectly passed"})
 
         token = request.headers.get("Authorization ", "").removeprefix("Bearer ")
         if not token:
@@ -535,6 +538,8 @@ class AdminGetApiKeys(Resource):
             log_event("authorization_error", "warning", {"user_id": user_id, "target": data["target"], "role": data["role"], "details": "User does not have correct permission level"})
             return {"info": "Not authorized"}, 403
         
+        log_event("get_api_keys", "info", {"user_id":user_id, "target": target, "details": "admin retrieved api keys from user"})
+        return db_manage.get_api_tokens(target)        
         
 
 api.add_resource(Login, "/api/login")
@@ -544,6 +549,7 @@ api.add_resource(ChangePassword, "/api/change/password")
 api.add_resource(GetRole, "/api/role")
 api.add_resource(CreateApiToken, "/api/create/api_key")
 api.add_resource(RevokeApiToken, "/api/revoke/api_token")
+api.add_resource(GetApiKeys, "/api/get/api_keys")
 
 api.add_resource(AdminRegister, "/api/admin/register")
 api.add_resource(AdminChangeRole, "/api/admin/change/role")
@@ -552,6 +558,7 @@ api.add_resource(AdminChangePassword, "/api/admin/change/password")
 api.add_resource(AdminGetRole, "/api/admin/role/<target>")
 api.add_resource(AdminCreateApiToken, "/api/admin/create/api_key")
 api.add_resource(AdminRevokeApiToken, "/api/admin/revoke/api_token")
+api.add_resource(AdminGetApiKeys, "/api/admin/get/api_keys/<target>")
 
 if __name__ == "__main__":
     app.run("0.0.0.0", port=9444)
