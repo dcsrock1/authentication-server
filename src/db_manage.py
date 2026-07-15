@@ -45,7 +45,7 @@ def init_db() -> None:
         """)
 
         conn.execute("""
-            CREATE TABLE IF NOT EXISTS api_tokens (
+            CREATE TABLE IF NOT EXISTS api_keys (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id TEXT NOT NULL REFERENCES users(id),
                 token TEXT UNIQUE NOT NULL,
@@ -349,46 +349,46 @@ def get_role(user_id: str) -> str:
             raise KeyError(f"User ID '{user_id}' not found")
         return row[0]
 
-# Creates an api token that does not expire tied to a specific user account
-def create_api_token(user_id: str, label: str) -> str:
+# Creates an api key that does not expire tied to a specific user account
+def create_api_key(user_id: str, label: str) -> str:
     token = secrets.token_hex(32)
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute(
-            "INSERT INTO api_tokens (user_id, token, label) VALUES (?, ?, ?)",
+            "INSERT INTO api_keys (user_id, token, label) VALUES (?, ?, ?)",
             (user_id, token, label)
         ) 
     return token
 
 # Verifies an api token is valid and returns the user id it is tied to
-def verify_api_token(token: str) -> str | False:
+def verify_api_key(token: str) -> str | False:
     with sqlite3.connect(DB_PATH) as conn:
         row = conn.execute(
-            "SELECT user_id FROM api_tokens WHERE token = ?",
+            "SELECT user_id FROM api_keys WHERE token = ?",
             (token,)
         ).fetchone()
         if row is None:
             return None
         conn.execute(
-            "UPDATE api_tokens SET last_used_at = ? WHERE token = ?",
+            "UPDATE api_keys SET last_used_at = ? WHERE token = ?",
             (datetime.now(datetime.timezone.utc).isoformat(), token)
         )
     return row[0]
     
 # Revokes an api token from a user
-def revoke_api_token(token: str) -> None:
+def revoke_api_key(token: str) -> None:
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.execute(
-            "DELETE FROM api_tokens WHERE token = ?", (token,)
+            "DELETE FROM api_keys WHERE token = ?", (token,)
         )
         if cursor.rowcount == 0:
             raise KeyError("API token not found")
 
-# gets a list of all api key parsed from SQL to a python dict
-def get_api_tokens(user_id: str) -> list[dict]:
+# gets a list of all api keys parsed from SQL to a python dict
+def get_api_keys(user_id: str) -> list[dict]:
     with sqlite3.connect(DB_PATH) as conn:
         conn.row_factory = sqlite3.Row
         rows = conn.execute(
-            "SELECT id, label, created_at, last_used_at FROM api_tokens WHERE user_id = ?",
+            "SELECT id, label, created_at, last_used_at FROM api_keys WHERE user_id = ?",
             (user_id,)
         ).fetchall()
     return [dict(row) for row in rows]

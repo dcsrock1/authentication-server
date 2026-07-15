@@ -387,7 +387,7 @@ class AdminChangeRole(Resource):
         log_event("role_changed", "info", {"user_id": user_id, "target": data["target"], "role": data["role"], "details": "Role was updated successfully"})
         return {"info": "role has been changed"}, 204
 
-class CreateApiToken(Resource):
+class CreateApiKey(Resource):
     def post(self):
         data = request.get_json()
 
@@ -411,7 +411,7 @@ class CreateApiToken(Resource):
         return {"api_key": db_manage.create_api_token(user_id, data["label"])}, 200
         
 
-class AdminCreateApiToken(Resource):
+class AdminCreateApiKey(Resource):
     def post(self):
         data = request.get_json()
 
@@ -443,9 +443,10 @@ class AdminCreateApiToken(Resource):
             log_event("user_not_found", "warning", {"user_id": user_id, "target": data["target"], "details": "Target user not found"})
             return {"info": "User not found"}, 404
 
+        log_event("API_k")
         return {"api_key": db_manage.create_api_token(data["target"], data["label"])}, 200
         
-class RevokeApiToken(Resource):
+class RevokeApiKey(Resource):
     def delete(self):
         data = request.get_json()
 
@@ -466,14 +467,15 @@ class RevokeApiToken(Resource):
             log_event("invalid_token", "warning")
             return {"info": "Invalid or expired token"}, 401
         
-        if db_manage.verify_api_token(data["target"]) != user_id:
-            log_event("token_user_mismatch", "warning", {"user_id": user_id, "details": "User attempted to revoke an API key that does not belong to them"})
+        if db_manage.verify_api_key(data["target"]) != user_id:
+            log_event("key_user_mismatch", "warning", {"user_id": user_id, "details": "User attempted to revoke an API key that does not belong to them"})
             return {"info": "API key not found"}, 404
 
+        log_event("api_key_revoke", "info", {"user_id": user_id, "details": "A user has revoked their API key"})
         return {"info": "token revoked successfully"}, 204
         
         
-class AdminRevokeApiToken(Resource):
+class AdminRevokeApiKey(Resource):
     def delete(self):
         data = request.get_json()
 
@@ -516,7 +518,7 @@ class GetApiKeys(Resource):
 
 
         log_event("get_api_keys", "info", {"user_id": user_id, "details": "user retrieved all api keys tied to the account"})
-        return jsonify(db_manage.get_api_tokens(user_id))
+        return jsonify(db_manage.get_api_keys(user_id))
 
 class AdminGetApiKeys(Resource):
     def get(self, target):
@@ -539,7 +541,7 @@ class AdminGetApiKeys(Resource):
             return {"info": "Not authorized"}, 403
         
         log_event("get_api_keys", "info", {"user_id":user_id, "target": target, "details": "admin retrieved api keys from user"})
-        return db_manage.get_api_tokens(target)        
+        return db_manage.get_api_keys(target)        
         
 
 api.add_resource(Login, "/api/login")
@@ -547,8 +549,8 @@ api.add_resource(RevokeToken, "/api/revoke/token")
 api.add_resource(RevokeAllTokens, "/api/revoke/tokens")
 api.add_resource(ChangePassword, "/api/change/password")
 api.add_resource(GetRole, "/api/role")
-api.add_resource(CreateApiToken, "/api/create/api_key")
-api.add_resource(RevokeApiToken, "/api/revoke/api_token")
+api.add_resource(CreateApiKey, "/api/create/api_key")
+api.add_resource(RevokeApiKey, "/api/revoke/api_token")
 api.add_resource(GetApiKeys, "/api/get/api_keys")
 
 api.add_resource(AdminRegister, "/api/admin/register")
@@ -556,8 +558,8 @@ api.add_resource(AdminChangeRole, "/api/admin/change/role")
 api.add_resource(AdminChangeUsername, "/api/admin/change/username")
 api.add_resource(AdminChangePassword, "/api/admin/change/password")
 api.add_resource(AdminGetRole, "/api/admin/role/<target>")
-api.add_resource(AdminCreateApiToken, "/api/admin/create/api_key")
-api.add_resource(AdminRevokeApiToken, "/api/admin/revoke/api_token")
+api.add_resource(AdminCreateApiKey, "/api/admin/create/api_key")
+api.add_resource(AdminRevokeApiKey, "/api/admin/revoke/api_token")
 api.add_resource(AdminGetApiKeys, "/api/admin/get/api_keys/<target>")
 
 if __name__ == "__main__":
