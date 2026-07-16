@@ -182,6 +182,9 @@ class GetAllTokens(Resource):
         if not user_id:
             log_event("invalid_token", "warning")
             return {"info": "Invalid or expired token"}, 401
+        
+        log_event("get_tokens", "info", {"user_id": user_id, "details": "User request list of all sessions tokens"})
+        return db_manage.get_all_tokens(user_id)
 
 class AdminChangeUsername(Resource): 
     def post(self):

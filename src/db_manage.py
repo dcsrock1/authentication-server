@@ -55,14 +55,14 @@ def init_db() -> None:
             )
         """)
         # create and define the totp table if it does not already exist
-#        conn.execute("""
-#            CREATE TABLE IF NOT EXISTS totp (
-#                id INTEGER PRIMARY KEY AUTOINCREMENT,
-#                user_id TEXT NOT NULL REFERENCES users(id),
-#                secret TEXT UNIQUE NOT NULL,
-#                created_at TEXT DEFAULT (datetime('now')),
-#            )
-#        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS totp (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL REFERENCES users(id),
+                secret TEXT UNIQUE NOT NULL,
+                created_at TEXT DEFAULT (datetime('now')),
+            )
+        """)
 
 
 # function for adding new users into the database
@@ -392,3 +392,9 @@ def get_api_keys(user_id: str) -> list[dict]:
             (user_id,)
         ).fetchall()
     return [dict(row) for row in rows]
+
+def get_otp_seed(user_id) -> str:
+    pass
+
+def verify_otp(user_id, otp) -> bool:
+    pass
