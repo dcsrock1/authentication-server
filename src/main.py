@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, abort
+from flask import Flask, request, abort
 from flask_restful import Api, Resource
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -82,12 +82,14 @@ class Login(Resource):
 
 """
 Description: Allows admin users to register new users
-Inputs  username -> str, password -> str, role -> str
+Inputs:  username -> str, password -> str, role -> str
 Requires token: true
 """
 class AdminRegister(Resource): # done
     def post(self):
+        token = request.headers.get("Authorization", "").removeprefix("Bearer ")
         data = request.get_json()
+
         if not data:
             log_event("invalid_request", "warning", {"details": "No data in Body"})
             return {"info": "Malformed request"}, 400
@@ -101,7 +103,7 @@ class AdminRegister(Resource): # done
             log_event("invalid_request", "warning", {"details": "No role"})
             return {"info": "Malformed request"}, 400
         
-        token = request.headers.get("Authorization", "").removeprefix("Bearer ")
+
         if not token:
             log_event("no_token", "warning", {"details": "No token"})
             return {"info": "No token provided"}, 401
@@ -124,6 +126,11 @@ class AdminRegister(Resource): # done
             return {"info": "username already exists"}, 409
 
         
+"""
+Description: Allows users to revoke session tokens that have been tied to their account
+Inputs: target -> str
+Requires token: true
+"""
 class RevokeToken(Resource):
     def delete(self):
         data = request.get_json()
@@ -151,11 +158,15 @@ class RevokeToken(Resource):
         return {"info": "Token has been successfully revoked"}, 204
 
     
-
+"""
+Description: Allows users to revoke all session tokens that have been tied to their account
+Requires token: true
+"""
 class RevokeAllTokens(Resource): 
     def delete(self):
         
         token = request.headers.get("Authorization", "").removeprefix("Bearer ")
+
         if not token:
             log_event("no_token", "warning")
             return {"info": "No token provided"}, 401
@@ -164,10 +175,11 @@ class RevokeAllTokens(Resource):
         if not user_id:
             log_event("invalid_token", "warning")
             return {"info": "Invalid or expired token"}, 401
-        
+
         db_manage.revoke_all_tokens(user_id)
         log_event("tokens_revoked", "info", {"user_id": user_id})
         return {"info": "All tokens have been successfully revoked"}, 204
+        
         
 
 class GetAllTokens(Resource):
@@ -458,7 +470,12 @@ class RevokeApiKey(Resource):
             return {"info": "Malformed request"}, 400
         elif not isinstance(data.get("target"), str):
             log_event("invalid_request", "warning", {"details": "No target"})
-            return {"info": "Malformed request"}, 400
+            return {"info": "Malformed request"}, 
+
+        user_id = db_manage.verify_token(token)
+        if not user_id:
+            log_event("invalid_token", "warning")
+            return {"info": "Invalid or expired token"}, 401
 
         token = request.headers.get("Authorization", "").removeprefix("Bearer ")
         if not token:
