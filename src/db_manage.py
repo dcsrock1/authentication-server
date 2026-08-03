@@ -136,7 +136,7 @@ def password_secure_check(password: str):
     return True # return true if all check passed successfully
 
 # function for verifying password against the hash in the DB
-def verify_password(username: str, password: str) -> int | bool:
+def verify_password(username: str, password: str) -> str | bool:
 
     # connect to the database and retrieve the password hash from the users table
     with sqlite3.connect(DB_PATH) as conn:
@@ -163,7 +163,7 @@ def verify_password(username: str, password: str) -> int | bool:
     if ph.check_needs_rehash(row["password_hash"]):
         _update_hash(username, peppered) 
     
-    return get_id_by_username(username) # TODO: Replace this with a less janky method of getting the ID as this function should only be used when absolutely needed
+    return get_id_by_username(username) 
 
 # Assisting function for updating the hash in the database
 def _update_hash(username: str, peppered_password: str) -> None:
@@ -190,7 +190,7 @@ def user_exists(user_id: str) -> bool:
     return bool(row[0])
     
 # utility function to translate the username to the user_id (mainly used in testing)
-def get_id_by_username(username: str) -> int | None:
+def get_id_by_username(username: str) -> str | None:
 
     # connect to the database and find the row with the matching username then return the corresponding user_id
     with sqlite3.connect(DB_PATH) as conn:
