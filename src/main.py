@@ -1,4 +1,4 @@
-from flask import Flask, request, abort
+from flask import Flask, request, abort, g
 from flask_restful import Api, Resource
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -40,6 +40,37 @@ def log_event(event_type: str, severity: str, details: dict={}) -> None:
     with open(LOG_PATH, "w") as data:
         json.dump(log, data)
 
+def require_auth(func):
+    def wrapper(*args, **kwargs):
+        token = request.headers.get("Authorization", "").removeprefix("Bearer ")
+        if not token:
+            log_event("no_token", "warning", {"details": "No token"})
+            return {"info": "No token provided"}, 401
+        g.user_id = db_manage.verify_token(token)
+        if not g.user_id:
+            log_event("invalid_token", "warning")
+            return {"info": "Invalid or expired token"}, 401
+        return func(*args, **kwargs)
+    return wrapper
+
+
+def check_body(spec_dict : dict):
+    def level2(func):
+        def wrapper(*args, **kwargs):
+            g.body = request.get_json(silent=True)
+            if not g.body:
+                log_event("invalid_request", "warning", {"details": "No data in body"})
+                return MALFORMED_REQUEST_RES
+            for key, value in spec_dict.items():
+                if key not in g.body:
+                    log_event("invalid_request", "warning", {"details": f"No {key}"})
+                    return MALFORMED_REQUEST_RES
+                elif not isinstance(g.body[key], value):
+                    log_event("invalid_request", "warning", {"details": f"Invalid {key}"})
+                    return MALFORMED_REQUEST_RES
+            return func(*args, **kwargs)
+        return wrapper
+    return level2
 
 @app.before_request
 def check_ip_and_key():
@@ -57,6 +88,7 @@ Description: Allows users to send in a username and password to be verified, onc
 Input: username -> str, password -> str
 Requires token: false
 """
+@limiter.limit
 class Login(Resource):
     def post(self):
         data = request.get_json()
@@ -105,16 +137,8 @@ class AdminRegister(Resource):
             log_event("invalid_request", "warning", {"details": "No role"})
             return MALFORMED_REQUEST_RES
 
-        token = request.headers.get("Authorization", "").removeprefix("Bearer ")
-        if not token:
-            log_event("no_token", "warning", {"details": "No token"})
-            return {"info": "No token provided"}, 401
-        
-        user_id = db_manage.verify_token(token)
-        if not user_id:
-            log_event("invalid_token", "warning", {"details": "Token is invalid"})
-            return {"info": "Invalid or expired token"}, 401
-        
+
+
         if db_manage.get_role(user_id) != "admin":
             log_event("authorization_error", "warning", {"details": "User does not have correct permission level"})
             return {"info": "Not authorized"}, 403
@@ -149,10 +173,7 @@ class RevokeToken(Resource):
             log_event("no_token", "warning")
             return {"info": "No token provided"}, 401
         
-        user_id = db_manage.verify_token(token)
-        if not user_id:
-            log_event("invalid_token", "warning")
-            return {"info": "Invalid or expired token"}, 401
+
 
 
         db_manage.revoke_token(data["target"])
