@@ -5,6 +5,7 @@ from flask_limiter.util import get_remote_address
 import datetime
 import json
 import os
+from uuid import UUID
 
 import db_manage
 
@@ -37,43 +38,89 @@ def log_event(event_type: str, severity: str, details: dict={}) -> None:
     with open(LOG_PATH, "w") as data:
         json.dump(log, data)
 
+# function to check a password to make sure that it meets security standards
+def password_secure_check(password: str):
+    if len(password) < 9: # ensure password is more than 9 characters
+        return False
+    
+    if not password.isalnum(): # ensure the password is not just alphabetical characters
+        return False
+    
+    return True # return true if all check passed successfully
+
+
+def val_user_id(user_id : str) -> bool:
+    try:
+        UUID(user_id, version=4)
+    except ValueError:
+        return False
+    return True
+
+def val_session_token(token : str) -> bool:
+    if token.length != 64:
+        return False
+    
+    if all(c in "0123456789abcdef" for c in token):
+        return False
+    
+    return True
+        
+
 def check_body(spec_dict : dict):
+
     def level2(func):
+
         def wrapper(*args, **kwargs):
             g.body = request.get_json(silent=True)
             if not g.body:
                 log_event("invalid_request", "warning", {"details": "No data in body"})
                 return {"info": "Malformed Request"}, 400
+            
             for key, value in spec_dict.items():
                 if key not in g.body:
                     log_event("invalid_request", "warning", {"details": f"No {key}"})
                     return {"info": "Malformed Request"}, 400
+                
                 elif not isinstance(g.body[key], value):
                     log_event("invalid_request", "warning", {"details": f"Invalid {key}"})
                     return {"info": "Malformed Request"}, 400
+                
             return func(*args, **kwargs)
+        
         return wrapper
+    
     return level2
 
 def require_auth(func):
+
     def wrapper(*args, **kwargs):
         token = request.headers.get("Authorization", "").removeprefix("Bearer ")
+
         if not token:
             log_event("no_token", "warning", {"details": "No token"})
             return {"info": "No token provided"}, 401
+
+        if not val_session_token(token):
+            log_event("invalid_token", "warning")
+            return {"info": "Invalid or expired token"}, 401
+        
         g.user_id = db_manage.verify_token(token)
         if not g.user_id:
             log_event("invalid_token", "warning")
             return {"info": "Invalid or expired token"}, 401
+        
         return func(*args, **kwargs)
+    
     return wrapper
 
 def require_admin(func):
+
     def wrapper(*args, **kwargs):
         if db_manage.get_role(g.user_id) != "admin":
             log_event("authorization_error", "warning", {"user_id": g.user_id, "details": "User does not have correct permission level"})
             return {"info": "Not authorized"}, 403
         return func(*args, **kwargs)
+    
     return wrapper
 
 
@@ -140,9 +187,11 @@ Requires token: true
 class RevokeToken(Resource):
     @require_auth
     def delete(self, target):
-
-        db_manage.revoke_token(data["target"])
-        log_event("token_revoked", "info", {"user_id": user_id, "token_id": token[-10:]})
+        if not val_session_token:
+            log_event("invalid_request", "warning") 
+            return {"info": "Malformed Request"}, 400
+        db_manage.revoke_token(g.body["target"])
+        log_event("token_revoked", "info", {"details": "A session token has been revoked", "user_id": g.user_id})
         return {"info": "Token has been successfully revoked"}, 204
 
     
@@ -152,72 +201,36 @@ Requires token: true
 """
 @limiter.limit
 class RevokeAllTokens(Resource): 
+    @require_auth
     def delete(self):
-        token = request.headers.get("Authorization", "").removeprefix("Bearer ")
-        if not token:
-            log_event("no_token", "warning")
-            return {"info": "No token provided"}, 401
-        
-        user_id = db_manage.verify_token(token)
-        if not user_id:
-            log_event("invalid_token", "warning")
-            return {"info": "Invalid or expired token"}, 401
-
-        db_manage.revoke_all_tokens(user_id)
-        log_event("tokens_revoked", "info", {"user_id": user_id})
+        db_manage.revoke_all_tokens(g.user_id)
+        log_event("tokens_revoked", "info", {"user_id": g.user_id})
         return {"info": "All tokens have been successfully revoked"}, 204
         
         
 @limiter.limit
 class GetAllTokens(Resource):
+    @require_auth
     def get(self):
-        token = request.headers.get("Authorization ", "").removeprefix("Bearer ")
-        if not token:
-            log_event("no_token", "warning")
-            return {"info": "No token provided"}, 401
-        
-        user_id = db_manage.verify_token(token)
-        if not user_id:
-            log_event("invalid_token", "warning")
-            return {"info": "Invalid or expired token"}, 401
-        
-        log_event("get_tokens", "info", {"user_id": user_id, "details": "User request list of all sessions tokens"})
-        return db_manage.get_all_tokens(user_id)
+        log_event("get_tokens", "info", {"user_id": g.user_id, "details": "User request list of all sessions tokens"})
+        return db_manage.get_all_tokens(g.user_id)
 
 @limiter.limit
 class AdminChangeUsername(Resource): 
+    @check_body({"target": str, "username": str})
+    @require_auth
+    @require_admin
     def post(self):
-        data = request.get_json()
-        if not data:
-            log_event("invalid_request", "warning", {"details": "No data in body"})
-            return MALFORMED_REQUEST_RES
-        elif not isinstance(data.get("target"), str):
-            log_event("invalid_request", "warning", {"details": "No target"})
-            return MALFORMED_REQUEST_RES
-        elif not isinstance(data.get("username"), str):
-            log_event("invalid_request", "warning", {"details": "No username"})
-            return MALFORMED_REQUEST_RES
-        
-        token = request.headers.get("Authorization", "").removeprefix("Bearer ")
-        if not token:
-            log_event("no_token", "warning")
-            return {"info": "No token provided"}, 401
-        user_id = db_manage.verify_token(token)
-        if not user_id:
-            log_event("invalid_token", "warning")
-            return {"info": "Invalid or expired token"}, 401
-        else:
-            if db_manage.get_role(user_id) != "admin":
-                log_event("authorization_invalid", "warning", {"user_id": user_id})
-                return {"info": "Account does not have authorization"}, 403
-            else:
-                try:
-                    db_manage.change_username(user_id, data["username"])
-                    log_event("username_changed", "info", {"user_id": user_id})
-                    return {"info": "Username has been changed"}, 204
-                except ValueError as e:
-                    log_event("username_exists", "warning", {"user_id": user_id})
-                    return {"info": "Username already in use"}, 409
+        if not val_user_id(g.body["target"]):
+            log_event("invalid_request", "warning", {"details": "Invalid target"})
+            return {"info": "Malformed Request"}, 400
+        try:
+            db_manage.change_username(g.body["target"], g.body["username"])
+            log_event("username_changed", "info", {"user_id": g.user_id})
+            return {"info": "Username has been changed"}, 204
+        except ValueError:
+            log_event("username_exists", "warning", {"user_id": g.user_id})
+            return {"info": "Username already in use"}, 409
             
 """
 Description: Allows a user to change their own password
@@ -226,31 +239,15 @@ Requires token: true
 """
 @limiter.limit
 class ChangePassword(Resource):
-    def post(self):
-        data = request.get_json()
-        if not data:
-            log_event("invalid_request", "warning", {"details": "no data in body"})
-            return MALFORMED_REQUEST_RES
-        if not isinstance(data.get("password"), str):
-            log_event("invalid_request", "warning", {"details": "no password"})
-            return MALFORMED_REQUEST_RES
-        
-        token = request.headers.get("Authorization", "").removeprefix("Bearer ")
-        if not token:
-            log_event("no_token", "warning")
-            return {"info": "No token provided"}, 401
-        
-        user_id = db_manage.verify_token(token)
-        if not user_id:
-            log_event("invalid_token", "warning")
-            return {"info": "Invalid or expired token"}, 401
-
-        if not db_manage.password_secure_check(data["password"]):
-            log_event("Insecure_password", "warning", {"user_id": user_id, "details": "Password provided is insecure"})
+    @check_body({"password": str})
+    @require_auth
+    def post(self):        
+        if not db_manage.password_secure_check(g.body["password"]):
+            log_event("Insecure_password", "warning", {"details": "Password provided is insecure", "user_id": g.user_id})
             return {"info": "Insecure password, password change failed"}, 400
 
-        db_manage.change_password(user_id, data["password"])
-        log_event("password_changed", "info", {"user_id": user_id})
+        db_manage.change_password(g.user_id, g.body["password"])
+        log_event("password_changed", "info", {"user_id": g.user_id})
         return {"info": "password has been changed"}, 204
         
 
@@ -261,35 +258,23 @@ Requires token: true
 """
 @limiter.limit
 class AdminChangePassword(Resource):
+    @check_body({"password": str})
+    @require_auth
+    @require_admin
     def post(self):
-        data = request.get_json()
-        if not isinstance(data.get("target"), str):
-            log_event("invalid_request", "warning", {"details": "no target"})
-            return MALFORMED_REQUEST_RES
-        if not isinstance(data.get("password"), str):
-            log_event("invalid_request", "warning", {"details": "no password"})
-            return MALFORMED_REQUEST_RES
-        
-        token = request.headers.get("Authorization", "").removeprefix("Bearer ")
-        if not token:
-            log_event("no_token", "warning")
-            return {"info": "No token provided"}, 401
-        
-        user_id = db_manage.verify_token(token)
-        if not user_id:
-            log_event("invalid_token", "warning")
-            return {"info": "Invalid or expired token"}, 401
-
-        if not db_manage.user_exists(data["target"]):
-            log_event("user_not_found", "warning", {"user_id": user_id, "target": data["target"], "details": "Target user not found"})
+        if not val_user_id(g.body["target"]):
+            log_event("invalid_request", "warning", {"details": "Invalid target"})
+            return {"info": "Malformed Request"}, 400
+        if not db_manage.user_exists(g.body["target"]):
+            log_event("user_not_found", "warning", {"user_id": g.user_id, "target": g.body["target"], "details": "Target user not found"})
             return {"info": "User "}, 404
 
-        if not db_manage.password_secure_check(data["password"]):
-            log_event("Insecure_password", "warning", {"user_id": user_id, "details": "Password provided is insecure"})
+        if not db_manage.password_secure_check(g.body["password"]):
+            log_event("Insecure_password", "warning", {"user_id": g.user_id, "details": "Password provided is insecure"})
             return {"info": "Insecure password, password change failed"}, 400
 
-        db_manage.change_password(data["target"], data["password"])
-        log_event("password_changed", "info", {"user_id": user_id, "target": data["target"]})
+        db_manage.change_password(g.body["target"], g.body["password"])
+        log_event("password_changed", "info", {"user_id": g.user_id, "target": g.body["target"]})
         
 """
 Description: Allows a user to retrieve there own role
@@ -298,19 +283,10 @@ Requires token: true
 """
 @limiter.limit
 class GetRole(Resource):
+    @require_auth
     def get(self):
-        token = request.headers.get("Authorization", "").removeprefix("Bearer ")
-        if not token:
-            log_event("no_token", "warning")
-            return {"info": "No token provided"}, 401
-        
-        user_id = db_manage.verify_token(token)
-        if not user_id:
-            log_event("invalid_token", "warning")
-            return {"info": "Invalid or expired token"}, 401
-        
-        role = db_manage.get_role(user_id)
-        log_event("role_returned", "info", {"user_id": user_id})
+        role = db_manage.get_role(g.user_id)
+        log_event("role_returned", "info", {"user_id": g.user_id})
         return {"role": role}, 200
 
 
@@ -321,30 +297,18 @@ Requires token: true
 """
 @limiter.limit
 class AdminGetRole(Resource):
+    @require_auth
+    @require_admin
     def get(self, target):
-        if not target.isalnum():
-            log_event("invalid_request", "warning", {"details": "No target id"})
-            MALFORMED_REQUEST_RES
-        
-        token = request.headers.get("Authorization", "").removeprefix("Bearer ")
-        if not token:
-            log_event("no_token", "warning", {"details": "No Token"})
-            return {"info": "No token provided"}, 401
-        
-        user_id = db_manage.verify_token(token)
-        if not user_id:
-            log_event("invalid_token", "warning", {"details": "Token is invalid"})
-            return {"info": "Invalid or expired token"}, 401
-
-        if db_manage.get_role(user_id) != "admin":
-            log_event("authorization_error", "warning", {"user_id": user_id, "target": target, "details": "User does not have correct permission level"})
-            return {"info": "Not authorized"}, 403
+        if not val_user_id(target):
+            log_event("invalid_request", "warning", {"details": "Invalid user ID"})
+            return {"info": "Malformed Request"}, 400
         if not db_manage.user_exists(target):
-            log_event("user_not_found", "warning", {"user_id": user_id, "target": target, "details": "Target user not found"})
+            log_event("user_not_found", "warning", {"user_id": g.user_id, "target": target, "details": "Target user not found"})
             return {"info": "User not found"}, 404
 
         role = db_manage.get_role(target)
-        log_event("role_returned", "info", {"user_id": user_id, "target": target})
+        log_event("role_returned", "info", {"details": "An admin user retrieved the role of a user", "user_id": g.user_id, "target": target})
         return {"role": role}, 200
         
 
@@ -356,38 +320,19 @@ Requires token: true
 """
 @limiter.limit
 class AdminChangeRole(Resource):
+    @check_body({"target": str, "role": str})
+    @require_auth
+    @require_admin
     def post(self):
-        data = request.get_json()
-        if not data:
-            log_event("invalid_request", "warning", {"details": "No data in body"})
-            return MALFORMED_REQUEST_RES
-        elif not isinstance(data.get("target"), str):
-            log_event("invalid_request", "warning", {"details": "No/Invalid target"})
-            return MALFORMED_REQUEST_RES
-        elif not isinstance(data.get("role"), str):
-            log_event("invalid_request", "warning", {"details": "No role"})
-            return MALFORMED_REQUEST_RES
-
-        token = request.headers.get("Authorization", "").removeprefix("Bearer ")
-        if not token:
-            log_event("no_token", "warning", {"details": "No token"})
-            return {"info": "No token provided"}, 401
-        
-        user_id = db_manage.verify_token(token)
-        if not user_id:
-            log_event("invalid_token", "warning")
-            return {"info": "Invalid or expired token"}, 401
-        
-        if db_manage.get_role(user_id) != "admin":
-            log_event("authorization_error", "warning", {"user_id": user_id, "target": data["target"], "role": data["role"], "details": "User does not have correct permission level"})
-            return {"info": "Not authorized"}, 403
-        
-        if not db_manage.user_exists(data["target"]):
-            log_event("user_not_found", "warning", {"user_id": user_id, "target": data["target"], "details": "Target user not found"})
+        if not val_user_id(g.body["target"]):
+            log_event("invalid_request", "warning", {"details": "Invalid user ID"})
+            return {"info": "Malformed Request"}, 400
+        if not db_manage.user_exists(g.body["target"]):
+            log_event("user_not_found", "warning", {"user_id": g.user_id, "target": g.body["target"], "details": "Target user not found"})
             return {"info": "User not found"}, 404
     
-        db_manage.set_role(data["target"], data["role"])
-        log_event("role_changed", "info", {"user_id": user_id, "target": data["target"], "role": data["role"], "details": "Role was updated successfully"})
+        db_manage.set_role(g.body["target"], g.body["role"])
+        log_event("role_changed", "info", {"user_id": g.user_id, "target": g.body["target"], "role": g.body["role"], "details": "Role was updated successfully"})
         return {"info": "role has been changed"}, 204
 
 @limiter.limit

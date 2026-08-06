@@ -121,19 +121,6 @@ def change_password(user_id: str, new_password: str) -> None:
         if cursor.rowcount == 0:
             raise KeyError(f"User ID '{user_id}' not found")
 
-# function to check a password to make sure that it meets security standards
-def password_secure_check(password: str):
-
-    if len(password) < 9: # ensure password is more than 9 characters
-        return False
-    
-    if password.isdigit(): # ensure password is not just digits
-        return False
-    
-    if password.isalpha(): # ensure the password is not just alphabetical characters
-        return False
-    
-    return True # return true if all check passed successfully
 
 # function for verifying password against the hash in the DB
 def verify_password(username: str, password: str) -> str | bool:
@@ -233,7 +220,7 @@ def get_user_details(user_id: str) -> dict | None:
 # function to create tokens for user sessions
 def create_token(user_id: str, days_valid: int = 30) -> str:
 
-    # generate a 32 character secret and append the expiry time in days to the end of the string
+    # generate a 64 character secret
     token = secrets.token_hex(32)
     expires_at = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=days_valid)
 
@@ -247,7 +234,7 @@ def create_token(user_id: str, days_valid: int = 30) -> str:
     return token # return new token to caller
 
 # function to validate session tokens
-def verify_token(token: str) -> int | bool:
+def verify_token(token: str) -> str | bool:
 
     # connect to the database and retrieve the matching token if one exists
     with sqlite3.connect(DB_PATH) as conn:
@@ -309,16 +296,6 @@ def get_all_tokens(user_id: str) -> list:
         ).fetchall()
 
     return [dict(row) for row in rows]
-
-# simplifies extracting the id from the token
-def extract_id_from_token(token: str) -> int:
-    user_id = token[:-42]
-    return user_id
-
-# simplifies extracting the expiry date from the token
-def extract_expiry_date_from_token(token: str) -> str:
-    expiry_date = token[-10:]
-    return expiry_date
 
 # sets role of a user
 def set_role(user_id: str, role: str) -> None:
