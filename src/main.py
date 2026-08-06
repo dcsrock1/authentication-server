@@ -12,9 +12,6 @@ API_KEY = "test-internal-key"
 ALLOWED_IPS = ["192.168.1.1", "127.0.0.1"]
 LOG_PATH = "auth_events.json"
 
-# Constants for storing common responses sent by the server
-MALFORMED_REQUEST_RES = {"info": "Malformed Request"}, 400
-
 app = Flask(__name__)
 api = Api(app)
 limiter = Limiter(get_remote_address, app=app, default_limits=["200 per day", "50 per hour"], )
@@ -40,6 +37,24 @@ def log_event(event_type: str, severity: str, details: dict={}) -> None:
     with open(LOG_PATH, "w") as data:
         json.dump(log, data)
 
+def check_body(spec_dict : dict):
+    def level2(func):
+        def wrapper(*args, **kwargs):
+            g.body = request.get_json(silent=True)
+            if not g.body:
+                log_event("invalid_request", "warning", {"details": "No data in body"})
+                return {"info": "Malformed Request"}, 400
+            for key, value in spec_dict.items():
+                if key not in g.body:
+                    log_event("invalid_request", "warning", {"details": f"No {key}"})
+                    return {"info": "Malformed Request"}, 400
+                elif not isinstance(g.body[key], value):
+                    log_event("invalid_request", "warning", {"details": f"Invalid {key}"})
+                    return {"info": "Malformed Request"}, 400
+            return func(*args, **kwargs)
+        return wrapper
+    return level2
+
 def require_auth(func):
     def wrapper(*args, **kwargs):
         token = request.headers.get("Authorization", "").removeprefix("Bearer ")
@@ -53,24 +68,14 @@ def require_auth(func):
         return func(*args, **kwargs)
     return wrapper
 
+def require_admin(func):
+    def wrapper(*args, **kwargs):
+        if db_manage.get_role(g.user_id) != "admin":
+            log_event("authorization_error", "warning", {"user_id": g.user_id, "details": "User does not have correct permission level"})
+            return {"info": "Not authorized"}, 403
+        return func(*args, **kwargs)
+    return wrapper
 
-def check_body(spec_dict : dict):
-    def level2(func):
-        def wrapper(*args, **kwargs):
-            g.body = request.get_json(silent=True)
-            if not g.body:
-                log_event("invalid_request", "warning", {"details": "No data in body"})
-                return MALFORMED_REQUEST_RES
-            for key, value in spec_dict.items():
-                if key not in g.body:
-                    log_event("invalid_request", "warning", {"details": f"No {key}"})
-                    return MALFORMED_REQUEST_RES
-                elif not isinstance(g.body[key], value):
-                    log_event("invalid_request", "warning", {"details": f"Invalid {key}"})
-                    return MALFORMED_REQUEST_RES
-            return func(*args, **kwargs)
-        return wrapper
-    return level2
 
 @app.before_request
 def check_ip_and_key():
@@ -90,30 +95,20 @@ Requires token: false
 """
 @limiter.limit
 class Login(Resource):
-    def post(self):
-        data = request.get_json()
-        if not data:
-            log_event("invalid_request", "warning", {"details": "No data in body"})
-            return MALFORMED_REQUEST_RES
-        elif not isinstance(data.get("username"), str):
-            log_event("invalid_request", "warning", {"details": "No username"})
-            return MALFORMED_REQUEST_RES
-        elif not isinstance(data.get("password"), str):
-            log_event("invalid_request", "warning", {"details": "No password"})
-            return MALFORMED_REQUEST_RES
-        
+    @check_body({"username": str, "password": str})
+    def post(self):        
         try:
-            user_id = db_manage.verify_password(data["username"], data["password"])
+            user_id = db_manage.verify_password(g.body["username"], g.body["password"])
         except KeyError:
-            log_event("login_failed", "warning", {"username": data["username"], "details": "User does not exist"})
+            log_event("login_failed", "warning", {"username": g.body["username"], "details": "User does not exist"})
             return {"info": "Username or password is incorrect"}, 401
 
         if not user_id:
-            log_event("login_failed", "warning", {"username": db_manage.get_id_by_username(data["username"]), "details": "Password is incorrect"})
+            log_event("login_failed", "warning", {"username": db_manage.get_id_by_username(g.body["username"]), "details": "Password is incorrect"})
             return {"info": "Username or password is incorrect"}, 401
-        else:
-            log_event("login_successful", "info")
-            return {"info": "Successful login", "token": db_manage.create_token(user_id)}, 200
+
+        log_event("login_successful", "info")
+        return {"info": "Successful login", "token": db_manage.create_token(user_id)}, 200
 
 
 """
@@ -121,34 +116,18 @@ Description: Allows admin users to register new users
 Inputs:  username -> str, password -> str, role -> str
 Requires token: true
 """
+@limiter.limit
 class AdminRegister(Resource): 
+    @check_body({"username": str, "password": str, "role": str})
+    @require_auth
+    @require_admin
     def post(self): 
-        data = request.get_json()
-        if not data:
-            log_event("invalid_request", "warning", {"details": "No data in Body"})
-            return MALFORMED_REQUEST_RES
-        elif not isinstance(data.get("username"), str):
-            log_event("invalid_request", "warning", {"details": "No username"})
-            return MALFORMED_REQUEST_RES
-        elif not isinstance(data.get("password"), str):
-            log_event("invalid_request", "warning", {"details": "No password"})
-            return MALFORMED_REQUEST_RES
-        elif not isinstance(data.get("role"), str):
-            log_event("invalid_request", "warning", {"details": "No role"})
-            return MALFORMED_REQUEST_RES
-
-
-
-        if db_manage.get_role(user_id) != "admin":
-            log_event("authorization_error", "warning", {"details": "User does not have correct permission level"})
-            return {"info": "Not authorized"}, 403
-        
         try:
-            db_manage.register(data["username"], data["password"], data["role"])
+            db_manage.register(g.body["username"], g.body["password"], g.body["role"])
             log_event("user_created", "info")
             return {"info": "User created"}, 201
         except ValueError as e:
-            log_event("user_creation_failed", "error", {"reason": f"username {data["username"]} is already in use"})
+            log_event("user_creation_failed", "error", {"details": f"username {g.body["username"]} is already in use"})
             return {"info": "username already exists"}, 409
 
         
@@ -157,24 +136,10 @@ Description: Allows users to revoke session tokens that have been tied to their 
 Inputs: target -> str
 Requires token: true
 """
+@limiter.limit
 class RevokeToken(Resource):
-    def delete(self):
-        data = request.get_json()
-
-        if not data:
-            log_event("invalid_request", "warning", {"details": "No data in body"})
-            return MALFORMED_REQUEST_RES
-        elif not isinstance(data.get("target"), str):
-            log_event("invalid_request", "warning", {"details": "No target"})
-            return MALFORMED_REQUEST_RES
-        
-        token = request.headers.get("Authorization", "").removeprefix("Bearer ")
-        if not token:
-            log_event("no_token", "warning")
-            return {"info": "No token provided"}, 401
-        
-
-
+    @require_auth
+    def delete(self, target):
 
         db_manage.revoke_token(data["target"])
         log_event("token_revoked", "info", {"user_id": user_id, "token_id": token[-10:]})
@@ -185,6 +150,7 @@ class RevokeToken(Resource):
 Description: Allows users to revoke all session tokens that have been tied to their account
 Requires token: true
 """
+@limiter.limit
 class RevokeAllTokens(Resource): 
     def delete(self):
         token = request.headers.get("Authorization", "").removeprefix("Bearer ")
@@ -202,7 +168,7 @@ class RevokeAllTokens(Resource):
         return {"info": "All tokens have been successfully revoked"}, 204
         
         
-
+@limiter.limit
 class GetAllTokens(Resource):
     def get(self):
         token = request.headers.get("Authorization ", "").removeprefix("Bearer ")
@@ -218,6 +184,7 @@ class GetAllTokens(Resource):
         log_event("get_tokens", "info", {"user_id": user_id, "details": "User request list of all sessions tokens"})
         return db_manage.get_all_tokens(user_id)
 
+@limiter.limit
 class AdminChangeUsername(Resource): 
     def post(self):
         data = request.get_json()
@@ -257,6 +224,7 @@ Description: Allows a user to change their own password
 Input: password -> str
 Requires token: true
 """
+@limiter.limit
 class ChangePassword(Resource):
     def post(self):
         data = request.get_json()
@@ -291,6 +259,7 @@ Description: Allows an admin user to change the password of any user
 Input: target -> int, password -> str
 Requires token: true
 """
+@limiter.limit
 class AdminChangePassword(Resource):
     def post(self):
         data = request.get_json()
@@ -327,6 +296,7 @@ Description: Allows a user to retrieve there own role
 Input: None
 Requires token: true
 """
+@limiter.limit
 class GetRole(Resource):
     def get(self):
         token = request.headers.get("Authorization", "").removeprefix("Bearer ")
@@ -349,6 +319,7 @@ Description: Allows admin users to retrieve the role of another user
 Input: target -> int
 Requires token: true
 """
+@limiter.limit
 class AdminGetRole(Resource):
     def get(self, target):
         if not target.isalnum():
@@ -383,6 +354,7 @@ Description: Allows admin users to modify the role of another user
 Input: target -> int, role -> str
 Requires token: true
 """
+@limiter.limit
 class AdminChangeRole(Resource):
     def post(self):
         data = request.get_json()
@@ -418,6 +390,7 @@ class AdminChangeRole(Resource):
         log_event("role_changed", "info", {"user_id": user_id, "target": data["target"], "role": data["role"], "details": "Role was updated successfully"})
         return {"info": "role has been changed"}, 204
 
+@limiter.limit
 class CreateApiKey(Resource):
     def post(self):
         data = request.get_json()
@@ -440,7 +413,7 @@ class CreateApiKey(Resource):
         
         return {"api_key": db_manage.create_api_token(user_id, data["label"])}, 200
         
-
+@limiter.limit
 class AdminCreateApiKey(Resource):
     def post(self):
         data = request.get_json()
@@ -474,7 +447,8 @@ class AdminCreateApiKey(Resource):
 
         log_event("API_k")
         return {"api_key": db_manage.create_api_token(data["target"], data["label"])}, 200
-        
+
+@limiter.limit 
 class RevokeApiKey(Resource):
     def delete(self, target):
         if not target.isalnum():
@@ -504,7 +478,7 @@ class RevokeApiKey(Resource):
         log_event("api_key_revoke", "info", {"user_id": user_id, "details": "A user has revoked their API key"})
         return {"info": "token revoked successfully"}, 204
         
-        
+@limiter.limit  
 class AdminRevokeApiKey(Resource):
     def delete(self, target):
         data = request.get_json()
@@ -529,7 +503,8 @@ class AdminRevokeApiKey(Resource):
         if db_manage.user_exists(data["target"]):
             log_event("user_not_found", "warning", {"user_id": user_id, "target": data["target"], "details": "Target user not found"})
             return {"info": "API token successfully revoked"}, 204
-        
+
+@limiter.limit
 class GetApiKeys(Resource):
     def get(self):
         
@@ -547,6 +522,7 @@ class GetApiKeys(Resource):
         log_event("get_api_keys", "info", {"user_id": user_id, "details": "user retrieved all api keys tied to the account"})
         return json.jsonify(db_manage.get_api_keys(user_id))
 
+@limiter.limit
 class AdminGetApiKeys(Resource):
     def get(self, target):
 
